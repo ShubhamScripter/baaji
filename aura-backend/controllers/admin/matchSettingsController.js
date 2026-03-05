@@ -20,7 +20,7 @@ export const toggleMatchStatus = async (req, res) => {
     }
 
     //Check if superamdin
-    if (req.role != 'supperadmin') {
+    if (req.role != 'superadmin') {
       return res.status(403).json({
         success: false,
         message: 'Only superadmin can change match status',

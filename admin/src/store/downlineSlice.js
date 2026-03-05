@@ -173,7 +173,7 @@ export const fetchDownlineTree = createAsyncThunk(
   async (userId, { rejectWithValue }) => {
     try {
       const { data } = await axios.post('/get/all-user', { id: userId });
-      console.log('downline tree data', data);
+     
       return data; // { message, data: [], selfData: {...} }
     } catch (err) {
       return rejectWithValue(err.response?.data?.error || 'Failed to fetch downline tree');
@@ -242,7 +242,7 @@ const downlineSlice = createSlice({
 
   state.balanceData = [
   { label: 'Total Balance', value: `BDT ${(selfData.totalBalance ?? 0).toFixed(2)}` },
-  { label: 'Total Exposure', value: `BDT ${(totalUserDownlineExposure ?? 0).toFixed(2)}` },
+  { label: 'Total Exposure', value: `BDT ${(selfData.exposure ?? 0).toFixed(2)}` },
   { label: 'Total Avail. Balance', value: `BDT ${(selfData.totalBalance ?? 0).toFixed(2)}` },
   { label: 'Balance', value: `BDT ${(selfData.avbalance ?? 0).toFixed(2)}` },
  {

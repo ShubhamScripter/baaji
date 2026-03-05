@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 const subAdminSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true },
     userName: { type: String, required: true, unique: true },
     account: { type: String, required: true },
     code: { type: String, required: true },
@@ -35,7 +36,7 @@ const subAdminSchema = new mongoose.Schema(
     exposureLimit: { type: Number, default: 0 },
     creditReference: { type: Number, default: 0 },
     rollingCommission: { type: Number, default: 0 },
-    phone: { type: Number, required: true },
+    phone: { type: Number},
     isPasswordChanged: { type: Boolean, default: false },
     password: { type: String, required: true },
     secret: { type: Number, default: 1 },
@@ -46,15 +47,7 @@ const subAdminSchema = new mongoose.Schema(
     remark: { type: String },
     role: {
       type: String,
-      enum: [
-        'supperadmin',
-        'admin',
-        'white',
-        'super',
-        'master',
-        'agent',
-        'user',
-      ],
+      enum: ['superadmin', 'admin', 'subadmin', 'seniorSuper', 'superAgent', 'agent', 'user'],
       default: 'user',
     },
     gamelock: {

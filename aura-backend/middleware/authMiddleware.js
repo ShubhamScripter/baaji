@@ -54,12 +54,7 @@ export const adminAuthMiddleware = async (req, res, next) => {
     const userRole = decodedToken.role;
 
     const allowedRoles = [
-      'supperadmin',
-      'admin',
-      'white',
-      'super',
-      'master',
-      'agent',
+      'superadmin', 'admin', 'subadmin', 'seniorSuper', 'superAgent', 'agent', 'user'
     ];
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ message: 'Access denied, admin only' });

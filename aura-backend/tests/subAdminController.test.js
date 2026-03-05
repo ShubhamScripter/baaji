@@ -795,13 +795,13 @@ describe('SubAdmin Controller Tests', () => {
       );
     });
 
-    test('Successfully create user - Role hierarchy: supperadmin can create admin', async () => {
+    test('Successfully create user - Role hierarchy: superadmin can create admin', async () => {
       const mockAdmin = {
         _id: 'super_001',
         code: 'SUPER001',
         secret: 1,
         password: 'hashed_password',
-        role: 'supperadmin',
+        role: 'superadmin',
         balance: 100000,
         avbalance: 90000,
       };
@@ -830,10 +830,10 @@ describe('SubAdmin Controller Tests', () => {
 
       const req = {
         id: 'super_001',
-        role: 'supperadmin',
+        role: 'superadmin',
         body: {
           userName: 'newadmin',
-          accountType: 'admin', // supperadmin can create admin
+          accountType: 'admin', // superadmin can create admin
           balance: 10000,
           masterPassword: 'master123',
           partnership: '50',

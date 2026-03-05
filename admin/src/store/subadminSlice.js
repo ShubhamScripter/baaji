@@ -33,6 +33,7 @@ export const loginAdmin = createAsyncThunk(
 export const addAdmin = createAsyncThunk(
   "user/create-admin",
   async (formData, { rejectWithValue }) => {
+    console.log("my formData is",formData);
     try {
       const response = await axios.post("/sub-admin/create", formData, {
         withCredentials: true,

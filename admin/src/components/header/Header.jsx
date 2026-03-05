@@ -162,6 +162,7 @@ import { fetchAccountSummary } from '../../store/accountSummarySlice';
 
 function Header() {
   const user = useSelector(state => state.auth.user); // login info
+  const currentUser = useSelector(state => state.downline.currentUser);
   const { summary, loading } = useSelector(state => state.accountSummary);
   const dispatch = useDispatch();
 
@@ -174,7 +175,7 @@ function Header() {
   }, [user?._id]);
 
   if (!user) return null; // or a loading placeholder
-
+console.log("summary is in header: ",user);
   // Use financialInfo.avbalance from summary if available, else fallback to auth user
   const balance = summary?.financialInfo?.avbalance ?? user.avbalance ?? 0;
 

@@ -43,7 +43,7 @@ const getBetCategory = (gameType) => {
 
 export const getPendingGamesForManualResult = async (req, res) => {
   try {
-    if (req.role !== 'supperadmin') {
+    if (req.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
         message: 'Only SuperAdmin can access pending games',
@@ -143,7 +143,7 @@ export const getPendingGamesForManualResult = async (req, res) => {
 
 export const getUnsettledBetsForManualResult = async (req, res) => {
   try {
-    if (req.role !== 'supperadmin') {
+    if (req.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
         message: 'Only SuperAdmin can get unsettled bets',
@@ -240,7 +240,7 @@ export const settleManualResult = async (req, res) => {
     }
 
     // Role check
-    if (req.role !== 'supperadmin') {
+    if (req.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
         message: 'Only SuperAdmin can settle manual results',
@@ -694,7 +694,7 @@ export const deleteManualResult = async (req, res) => {
       });
     }
 
-    if (req.role !== 'supperadmin') {
+    if (req.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
         message: 'Only SuperAdmin can delete manual Result',
@@ -749,7 +749,7 @@ export const voidManualBets = async (req, res) => {
     }
 
     // Role check
-    if (req.role !== 'supperadmin') {
+    if (req.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
         message: 'Only SuperAdmin can void bets',

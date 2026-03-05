@@ -166,8 +166,11 @@ function AccountTable({ users, refreshDownlines, currentUser }) {
                     <span
                       className="text-[#2066c6] text-xs underline cursor-pointer"
                       onClick={() => {
+                        console.log("my user role is:", user.role);
+                        console.log("my user id is:", user._id);
                         if (user.role && user._id) {
                           if (user.role != "user") {
+                           
                             navigate(`/${user.role}/${user._id}`);
                           }
                         } else {

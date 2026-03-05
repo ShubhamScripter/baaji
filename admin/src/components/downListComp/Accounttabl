@@ -1,4 +1,4 @@
-import React from "react";
+ import React from "react";
 import { FaExchangeAlt, FaUser, FaCog, FaLock, FaList } from "react-icons/fa";
 function AccountTable({users}) {
   return (

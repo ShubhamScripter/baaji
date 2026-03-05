@@ -45,6 +45,7 @@ export const cronJobGame1p = (io) => {
 
   //CASINO-Every 2 seconds(real-time updates)
   cron.schedule('*/2 * * * * *', async () => {
+    return;
     runsWithLock('casino', updateResultOfCasinoBets, 'updateResultOfCasinoBet');
   });
 

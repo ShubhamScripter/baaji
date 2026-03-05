@@ -26,20 +26,21 @@ function DownLineView() {
   const { userId } = useParams();
   const dispatch = useDispatch();
   const { balanceData, downlines, loading, error, currentUser } = useSelector(state => state.downline);
-  console.log("currentUser",currentUser)
+  console.log("my currentUser is2:",currentUser);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
+console.log("my userId is in useEffect:",userId);
     if (userId) dispatch(fetchDownlineTree(userId));
   }, [userId, dispatch]);
 
   // Get the role from the currentUser object (should be set in your slice)
   const userRole = currentUser?.role || null;
-  console.log("userRole",userRole)
+  console.log("my userRole is",userRole);
   const nextRole = roleHierarchy[userRole] || null;
-  console.log("nextRole",nextRole)
+  
 
   // Filter downlines based on search query and status
   const filteredDownlines = useMemo(() => {
@@ -124,7 +125,9 @@ function DownLineView() {
 
         {/* Add + Refresh */}
         <div className="flex gap-2">
-          {nextRole && (
+          {
+          nextRole && 
+          (
             <div
               className="flex justify-center items-center border border-[#bbb] shadow-[inset_0_2px_0_0_#ffffff80] bg-gradient-to-b from-white to-[#eee] px-2 py-1 gap-2 cursor-pointer"
               onClick={openModal}
