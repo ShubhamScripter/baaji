@@ -32,6 +32,7 @@ import {
   updatePartnership,
   userSetting,
   withdrowalAndDeposite,
+  getDuplicateIPUsers,
 } from '../../controllers/admin/subAdminController.js';
 import { adminAuthMiddleware } from '../../middleware/authMiddleware.js';
 
@@ -101,5 +102,7 @@ router.post(
   adminAuthMiddleware,
   changePasswordBySubAdmin
 );
+
+router.get("/duplicate-ip-users", adminAuthMiddleware, getDuplicateIPUsers);
 
 export default router;

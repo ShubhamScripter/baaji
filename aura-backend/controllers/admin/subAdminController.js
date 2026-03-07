@@ -2324,3 +2324,80 @@ export const updateGameLock = async (req, res) => {
     });
   }
 };
+
+export const getDuplicateIPUsers = async (req, res) => {
+  try {
+    console.log("getDuplicateIPUsers is called");
+    const { id, role } = req;
+    
+  
+    const allowedRoles = ["superadmin", "admin","subadmin", "seniorSuper"];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Access denied - You don't have permission to view this data" 
+      });
+    }
+
+    // Fetch all end users
+    const allEndUsers = await SubAdmin.find({
+      role: "user",
+      status: { $ne: "delete" }
+    }).select("userName lastIP _id role lastLogin createdAt");
+
+    // Build IP map
+    const ipMap = new Map();
+    
+    for (const user of allEndUsers) {
+      if (user.lastIP && user.lastIP !== "IP not found") {
+        const userIPs = user.lastIP.split(',').map(ip => ip.trim()).filter(ip => ip);
+        
+        for (const ip of userIPs) {
+          if (!ipMap.has(ip)) {
+            ipMap.set(ip, []);
+          }
+          if (!ipMap.get(ip).some(u => u._id.toString() === user._id.toString())) {
+            ipMap.get(ip).push({
+              _id: user._id,
+              userName: user.userName,
+              role: user.role,
+              lastLogin: user.lastLogin,
+              createdAt: user.createdAt,
+              fullIP: user.lastIP
+            });
+          }
+        }
+      }
+    }
+
+ 
+    const duplicateIPs = [];
+    for (const [ip, users] of ipMap.entries()) {
+      if (users.length > 1) {
+        duplicateIPs.push({
+          ip,
+          users,
+          count: users.length
+        });
+      }
+    }
+
+  
+    duplicateIPs.sort((a, b) => b.count - a.count);
+
+    return res.status(200).json({
+      success: true,
+      data: duplicateIPs,
+      totalDuplicateIPs: duplicateIPs.length,
+      totalAffectedUsers: duplicateIPs.reduce((sum, item) => sum + item.count, 0)
+    });
+
+  } catch (error) {
+    console.error("Error fetching duplicate IPs:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
+};
