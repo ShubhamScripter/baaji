@@ -78,7 +78,7 @@ router.get(
 );
 router.get('/get/login-history/:userId', adminAuthMiddleware, getLoginHistory);
 router.get('/get/user-profile/:userId', adminAuthMiddleware, getUserProfile);
-router.get(
+router.post(
   '/get/agent-trantionhistory',
   adminAuthMiddleware,
   getAgentTransactionHistory

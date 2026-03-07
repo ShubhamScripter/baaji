@@ -37,7 +37,7 @@ function EditPopup({ onClose }) {
     setLoading(true);
 
     try {
-      const response = await axiosInstance.post("/change/password/self", {
+      const response = await axiosInstance.post("/change/password-self", {
         oldPassword: formData.password,
         newPassword: formData.newPassword,
       });
