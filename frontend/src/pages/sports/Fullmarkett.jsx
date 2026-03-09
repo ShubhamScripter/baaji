@@ -1342,96 +1342,11 @@ const fetchScorecard = async (isInitial = false) => {
     }
   }, [scorecardHtml, isLive]);
 
-  // Fetch live stream when Live is selected
+  // Live stream disabled: do not fetch external live stream to avoid errors
   useEffect(() => {
-    if (!user) return;
-    const fetchLiveStream = async () => {
-      if (!isLive || !gameid || !match) {
-        setLiveStreamHtml(null);
-        return;
-      }
-
-      try {
-        setLiveStreamLoading(true);
-        const response = await fetch('https://sporta-api.iomhost.com:4200/spb/match-live-stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            match_id: `${gameid}`,
-            sportsName: 'cricket',
-            match_name: match,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log("Live stream API response:", result);
-        
-        if (result.status && result.data) {
-          const streamData = result.data;
-          console.log("Live stream data:", streamData);
-          console.log("Data type:", typeof streamData);
-          
-          let streamUrl = null;
-          
-          // Check if result.data is already a direct URL
-          if (typeof streamData === 'string' && (streamData.startsWith('http://') || streamData.startsWith('https://'))) {
-            // It's already a URL string - use it directly
-            streamUrl = streamData.trim();
-            console.log("✅ Direct URL detected:", streamUrl);
-          } else if (typeof streamData === 'string') {
-            // Try to extract URL from HTML iframe string (fallback)
-            const srcMatch = streamData.match(/src=["']([^"']+)["']/);
-            streamUrl = srcMatch ? srcMatch[1].trim() : null;
-            console.log("Extracted URL from HTML:", streamUrl || "No URL found");
-          }
-          
-          // Validate the URL
-          if (streamUrl && streamUrl.length > 10) {
-            const isFallbackUrl = (
-              streamUrl.includes('not-available') ||
-              streamUrl.includes('unavailable') ||
-              streamUrl.includes('error') ||
-              (streamUrl.endsWith('.html') && !streamUrl.startsWith('http'))
-            );
-            
-            if (!isFallbackUrl) {
-              // Valid streaming URL
-              console.log("✅ Setting live stream URL:", streamUrl);
-              setLiveStreamSrc(streamUrl);
-              setLiveStreamHtml(null); // Clear HTML since we're using direct URL
-            } else {
-              console.log("❌ Invalid or fallback URL detected:", streamUrl);
-              setLiveStreamSrc(null);
-              setLiveStreamHtml(null);
-            }
-          } else {
-            console.log("❌ No valid stream URL found");
-            setLiveStreamSrc(null);
-            setLiveStreamHtml(null);
-          }
-        } else {
-          console.log("❌ API response invalid:", result);
-          setLiveStreamSrc(null);
-          setLiveStreamHtml(null);
-          throw new Error(result.message || 'Failed to fetch live stream');
-        }
-      } catch (error) {
-        console.error('Error fetching live stream:', error);
-        setLiveStreamHtml(null);
-        setLiveStreamSrc(null);
-        toast.error('Failed to load live stream');
-      } finally {
-        setLiveStreamLoading(false);
-      }
-    };
-
-    fetchLiveStream();
+    setLiveStreamHtml(null);
+    setLiveStreamSrc(null);
+    setLiveStreamLoading(false);
   }, [isLive, gameid, match]);
 
   // Reset live stream when switching away from Live
@@ -1547,41 +1462,9 @@ const fetchScorecard = async (isInitial = false) => {
           <span className='font-semibold'>{team2}</span>
         </div>
         <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
-          {isLive ? (
-            <>
-              {liveStreamLoading ? (
-                <div className="w-full h-[400px] flex items-center justify-center bg-black">
-                  <div className="text-white">Loading live stream...</div>
-                </div>
-              ) : liveStreamSrc ? (
-                <iframe
-                  key={liveStreamSrc}
-                  src={liveStreamSrc}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    height: '300px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    margin: 0,
-                    padding: 0,
-                    verticalAlign: 'top',
-                    backgroundColor: '#000'
-                  }}
-                  title="Live Stream"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  frameBorder="0"
-                  scrolling="no"
-                />
-              ) : (
-                // <div className="w-full h-[300px] flex flex-col items-center justify-center bg-black">
-                //   <div className="text-white text-lg mb-2">Live stream not available</div>
-                //   <div className="text-gray-400 text-sm">The stream will appear here when it becomes available</div>
-                // </div>
-                null
-              )}
-            </>
+          {/* Live stream section disabled to avoid external errors */}
+          {false ? (
+            null
           ) : (
             <>
               {scorecardHtml ? (

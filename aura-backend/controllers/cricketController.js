@@ -67,6 +67,8 @@ export const getCricketData = async (req, res) => {
 };
 
 export const fetchCrirketBettingData = async (req, res) => {
+
+  console.log('my fetchCrirketBettingData');
   const { gameid } = req.query;
 
   if (!gameid) {

@@ -23,7 +23,7 @@ export const fetchSoccerInplayData = createAsyncThunk(
   "soccer/fetchSoccerInplayData",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/soccer/inplay");
+      const response = await api.get("/soccer");
       return response.data.matches;
     } catch (error) {
       return rejectWithValue(

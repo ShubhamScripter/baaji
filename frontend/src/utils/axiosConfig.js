@@ -46,7 +46,7 @@ api.interceptors.response.use(
 
 export default api;
 
-export const host = "ws://localhost:8000";
+export const host = "ws://localhost:3000";
 // export const host="https://ad.7billion.online"
 // export const host = "/";
 

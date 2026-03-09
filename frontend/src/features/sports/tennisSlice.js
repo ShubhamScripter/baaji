@@ -23,7 +23,7 @@ export const fetchTennisInplayData = createAsyncThunk(
   "tennis/fetchTennisInplayData",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/tennis/inplay");
+      const response = await api.get("/tennis");
       return response.data.matches;
     } catch (error) {
       return rejectWithValue(
