@@ -1,5 +1,6 @@
 import axios from 'axios';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
 import betModel from '../models/betModel.js';
@@ -23,6 +24,111 @@ export const registerUser = async (req, res) => {
       .json({ message: 'SubAdmin registered successfully', data: subAdmin });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+/** Self-registration: creates a user under superadmin (or REGISTRATION_INVITE_CODE). */
+export const registerSelf = async (req, res) => {
+  try {
+    console.log("req.body",req.body);
+    const { userName, password, name, phone, email } = req.body;
+
+    if (!userName || !password) {
+      return res
+        .status(400)
+        .json({ message: 'Username and password are required.' });
+    }
+
+    const normalizedUserName = userName.trim().toLowerCase();
+    if (!normalizedUserName) {
+      return res.status(400).json({ message: 'Username is required.' });
+    }
+
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        message:
+          'Password must be at least 8 characters with both letters and numbers. Special characters are not allowed.',
+      });
+    }
+
+    const existingByUserName = await SubAdmin.findOne({
+      userName: normalizedUserName,
+    });
+    if (existingByUserName) {
+      return res.status(400).json({ message: 'Username already taken.' });
+    }
+
+    const emailToUse = email && email.trim() ? email.trim() : `${normalizedUserName}@selfreg.local`;
+    const existingByEmail = await SubAdmin.findOne({ email: emailToUse });
+    if (existingByEmail) {
+      return res.status(400).json({ message: 'Email already registered.' });
+    }
+
+    let parentCode = process.env.REGISTRATION_INVITE_CODE;
+    if (!parentCode) {
+      const superadmin = await SubAdmin.findOne({
+        role: 'superadmin',
+        status: { $ne: 'delete' },
+      });
+      if (!superadmin) {
+        return res
+          .status(500)
+          .json({ message: 'Registration is not configured. Please contact support.' });
+      }
+      parentCode = superadmin.code;
+    }
+
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const displayName = name && name.trim() ? name.trim() : normalizedUserName;
+    const phoneNum = phone != null && phone !== '' ? Number(phone) : undefined;
+
+    const newUser = new SubAdmin({
+      name: displayName,
+      email: emailToUse,
+      userName: normalizedUserName,
+      account: 'user',
+      code,
+      invite: parentCode,
+      password,
+      role: 'user',
+      phone: phoneNum,
+      balance: 0,
+      baseBalance: 0,
+      totalBalance: 0,
+      status: 'active',
+    });
+    await newUser.save();
+
+    const token = jwt.sign(
+      { id: newUser._id, role: newUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('auth', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    const userResponse = newUser.toObject();
+    delete userResponse.password;
+    delete userResponse.masterPassword;
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      token,
+      data: userResponse,
+      isPasswordChanged: newUser.isPasswordChanged,
+    });
+  } catch (error) {
+    console.error('Self-registration error:', error);
+    res
+      .status(500)
+      .json({ message: error.message || 'Registration failed.' });
   }
 };
 

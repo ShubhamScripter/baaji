@@ -155,12 +155,16 @@ export const login = createAsyncThunk(
   }
 );
 
-// Optional: Register (adjust if your API changes)
+// Self-registration → creates user under superadmin, returns token for auto-login
 export const register = createAsyncThunk(
   "auth/register",
   async (userData, thunkAPI) => {
     try {
-      const res = await api.post("/auth/register", userData);
+      const res = await api.post("/user/register", userData);
+      if (res.data?.token) {
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.data));
+      }
       return res.data;
     } catch (err) {
       const msg =
@@ -271,13 +275,17 @@ const authSlice = createSlice({
         state.token = null;
       })
 
-      // REGISTER
+      // REGISTER (backend returns token + data for auto-login)
       .addCase(register.pending, (state) => {
         state.isLoading = true;
       })
-      .addCase(register.fulfilled, (state) => {
+      .addCase(register.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
+        if (action.payload?.token) {
+          state.token = action.payload.token;
+          state.user = action.payload.data;
+        }
       })
       .addCase(register.rejected, (state, action) => {
         state.isLoading = false;
