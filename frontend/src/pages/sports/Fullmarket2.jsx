@@ -327,7 +327,7 @@ import Sportbook from '../../components/leaguescomp/Sportbook';
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import BetCard from './BetCard';
-import { host } from '../../utils/axiosConfig';
+import { wsClient } from '../../utils/wsClient';
 import { fetchCricketBatingData } from '../../features/sports/cricketSlice';
 import { fetchSoccerBatingData } from '../../features/sports/soccerSlice';
 import {fetchTannisBatingData} from '../../features/sports/tennisSlice'
@@ -392,34 +392,18 @@ function Fullmarket2() {
   // ✅ WebSocket setup - Match cricket pattern
   useEffect(() => {
     if (!gameid) return;
+    wsClient.send({ type: "subscribe", gameid, apitype: "tennis" });
 
-    const socket = new WebSocket(host);
-
-    socket.onopen = () => {
-      console.log("✅ WebSocket connected");
-      socket.send(JSON.stringify({ type: "subscribe", gameid, apitype: "tennis" }));
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.gameid === gameid) {
-          setBettingData(message.data);
-        }
-      } catch (err) {
-        console.error("❌ Error parsing message:", err);
+    const unsubscribe = wsClient.subscribe((message) => {
+      if (
+        message?.type === "bettingData" &&
+        String(message.gameid) === String(gameid)
+      ) {
+        setBettingData(message.data);
       }
-    };
+    });
 
-    socket.onerror = (err) => {
-      console.error("❌ WebSocket error:", err);
-    };
-
-    socket.onclose = () => {
-      console.log("❌ WebSocket disconnected");
-    };
-
-    return () => socket.close();
+    return () => unsubscribe();
   }, [gameid]);
 
   useEffect(() => {

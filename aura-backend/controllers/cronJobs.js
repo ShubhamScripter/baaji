@@ -33,13 +33,12 @@ const runsWithLock = async (lockName, fn, label) => {
 export const cronJobGame1p = (io) => {
   //SPORTS-Every 1 minute(can be delayed ,no problem)
   cron.schedule('*/1 * * * *', async () => {
-    return;
     runsWithLock('sports', updateResultOfBets, 'updateResultOfBets');
   });
 
   //FANCY-Every 10 seconds(session needs quick update)
   cron.schedule('*/10 * * * * *', async () => {
-    return;
+  
     runsWithLock('fancy', updateFancyBetResult, 'updateFancyBetResult');
   });
 
@@ -57,7 +56,7 @@ export const cronJobGame1p = (io) => {
   // RECONCILE - Every 60 seconds
   // Fixes orphaned betHistory records using betModel as source of truth (NO API calls)
   cron.schedule('*/60 * * * * *', async () => {
-    return;
+
     runsWithLock(
       'reconcile',
       reconcileOrphanedBetHistory,

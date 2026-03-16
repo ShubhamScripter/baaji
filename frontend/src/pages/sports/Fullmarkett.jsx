@@ -729,7 +729,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {createBet,createfancyBet,getPendingBetAmo,messageClear} from '../../features/sports/betReducer'
 import BetCard from './BetCard';
-import { host } from '../../utils/axiosConfig';
+import { wsClient } from '../../utils/wsClient';
 import { fetchCricketBatingData } from '../../features/sports/cricketSlice';
 import Spinner from '../../components/Spinner';
 import { div } from 'motion/react-client';
@@ -808,39 +808,19 @@ function Fullmarkett() {
 
   useEffect(() => {
     if (!gameid) return;
+    // subscribe to betting updates for this game
+    wsClient.send({ type: "subscribe", gameid, apitype: "cricket" });
 
-    const socket = new WebSocket(host);
-
-    // socket.onopen = () => {
-    //   console.log("✅ WebSocket connected");
-    //   socket.send(JSON.stringify({ type: "subscribe", gameid }));
-    // };
-
-    socket.onopen = () => {
-      console.log("✅ WebSocket connected");
-      socket.send(JSON.stringify({ type: "subscribe", gameid, apitype: "cricket" }));
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.gameid === gameid) {
-          setBettingData(message.data);
-        }
-      } catch (err) {
-        console.error("❌ Error parsing message:", err);
+    const unsubscribe = wsClient.subscribe((message) => {
+      if (
+        message?.type === "bettingData" &&
+        String(message.gameid) === String(gameid)
+      ) {
+        setBettingData(message.data);
       }
-    };
+    });
 
-    socket.onerror = (err) => {
-      console.error("❌ WebSocket error:", err);
-    };
-
-    socket.onclose = () => {
-      console.log("❌ WebSocket disconnected");
-    };
-
-    return () => socket.close();
+    return () => unsubscribe();
   }, [gameid]);
 
     useEffect(() => {
@@ -970,36 +950,44 @@ console.log("betting data",bettingData)
   //   : [];
 //  console.log("match odd list",matchOddsList)
 
-const dataSource = Array.isArray(bettingData) && bettingData.length > 0 ? bettingData : battingData;
+  const dataSource =
+    Array.isArray(bettingData) && bettingData.length > 0 ? bettingData : battingData;
 console.log("data source",dataSource)
+
+  const normalizeRunnersToSection = (market) => {
+    // Provider sometimes sends `section` (with nat/odds), sometimes `runners` (with back/lay).
+    if (Array.isArray(market?.section) && market.section.length > 0) return market.section;
+    if (!Array.isArray(market?.runners)) return [];
+    return market.runners.map((runner) => ({
+      nat: runner.name,
+      team: runner.name,
+      sid: runner.id,
+      gstatus: runner.status,
+      status: runner.status,
+      odds: [
+        ...(runner.back?.[0]
+          ? [{ oname: 'back1', odds: runner.back[0].price, size: runner.back[0].size }]
+          : []),
+        ...(runner.lay?.[0]
+          ? [{ oname: 'lay1', odds: runner.lay[0].price, size: runner.lay[0].size }]
+          : []),
+      ],
+    }));
+  };
 
   // Match Odds List
   const matchOddsList = Array.isArray(dataSource)
     ? dataSource
         .filter(
           (item) =>
-            item.name === "Match Odds" ||
-            item.mtype === "MATCH_ODDS"
+            item?.name === "Match Odds" ||
+            item?.mtype === "MATCH_ODDS" ||
+            item?.mname === "Match Odds" ||
+            item?.mname === "MATCH_ODDS"
         )
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                team: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                status: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           matched: market.matched,
@@ -1017,28 +1005,14 @@ console.log("data source",dataSource)
     ? dataSource
         .filter(
           (item) =>
-            item.name === "Tied Match" ||
-            item.mtype === "TIED_MATCH"
+            item?.name === "Tied Match" ||
+            item?.mtype === "TIED_MATCH" ||
+            item?.mname === "Tied Match" ||
+            item?.mname === "TIED_MATCH"
         )
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                team: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                status: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           matched: market.matched,
@@ -1054,26 +1028,10 @@ console.log("data source",dataSource)
 
   const BookmakerList = Array.isArray(dataSource)
     ? dataSource
-        .filter((item) => item.name === "BOOKMAKER")
+        .filter((item) => item?.name === "BOOKMAKER" || item?.mname === "Bookmaker")
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                nat: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                gstatus: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           status: market.status,

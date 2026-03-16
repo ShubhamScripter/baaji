@@ -63,7 +63,7 @@ const subscribeToLiveScore = (gameid, apitype) => {
 
   try {
     console.log(` Connecting to live score for ${gameid} (${apitype})...`);
-
+    const BASE_SCORE_URL = process.env.BASE_SCORE_URL || API_URL;
     const scoreSocket = io(BASE_SCORE_URL, {
       transports: ['websocket'],
       reconnection: false, // disable auto reconnect
@@ -91,27 +91,27 @@ const subscribeToLiveScore = (gameid, apitype) => {
     });
 
     //  Handle connection errors safely
-    scoreSocket.on('connect_error', (err) => {
-      console.error(
-        ` Score socket error for ${gameid} (${apitype}):`,
-        err.message
-      );
+    // scoreSocket.on('connect_error', (err) => {
+    //   console.error(
+    //     ` Score socket error for ${gameid} (${apitype}):`,
+    //     err.message
+    //   );
 
-      // Close and clean current socket
-      try {
-        scoreSocket.close();
-      } catch (closeErr) {
-        console.error(' Error while closing socket:', closeErr.message);
-      }
+    //   // Close and clean current socket
+    //   try {
+    //     scoreSocket.close();
+    //   } catch (closeErr) {
+    //     console.error(' Error while closing socket:', closeErr.message);
+    //   }
 
-      delete liveScoreSockets[key];
+    //   delete liveScoreSockets[key];
 
-      // Retry safely after 5 seconds (no recursion)
-      setTimeout(() => {
-        console.log(` Reconnecting to ${gameid} (${apitype})...`);
-        subscribeToLiveScore(gameid, apitype);
-      }, 5000);
-    });
+    //   // Retry safely after 5 seconds (no recursion)
+    //   setTimeout(() => {
+    //     console.log(` Reconnecting to ${gameid} (${apitype})...`);
+    //     subscribeToLiveScore(gameid, apitype);
+    //   }, 5000);
+    // });
   } catch (err) {
     console.error(
       ' Unexpected error while subscribing to live score:',
