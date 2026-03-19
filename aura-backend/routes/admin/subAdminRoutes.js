@@ -32,6 +32,7 @@ import {
   updatePartnership,
   userSetting,
   withdrowalAndDeposite,
+  getDuplicateIPUsers,
 } from '../../controllers/admin/subAdminController.js';
 import { adminAuthMiddleware } from '../../middleware/authMiddleware.js';
 
@@ -42,7 +43,7 @@ router.post('/sub-admin/create', adminAuthMiddleware, createSubAdmin);
 router.post('/sub-admin/login', loginSubAdmin);
 router.get('/sub-admin/getuserbyid', adminAuthMiddleware, getSubAdmin);
 
-router.get('/get/all-user', adminAuthMiddleware, getAllUser);
+router.post('/get/all-user', adminAuthMiddleware, getAllUser);
 router.get('/get/delete-user', adminAuthMiddleware, getDeleteUser);
 router.get('/get/all-user-by-invite', adminAuthMiddleware, getUsersByInvite);
 router.post('/user-logout', adminAuthMiddleware, logout);
@@ -78,7 +79,7 @@ router.get(
 );
 router.get('/get/login-history/:userId', adminAuthMiddleware, getLoginHistory);
 router.get('/get/user-profile/:userId', adminAuthMiddleware, getUserProfile);
-router.get(
+router.post(
   '/get/agent-trantionhistory',
   adminAuthMiddleware,
   getAgentTransactionHistory
@@ -101,5 +102,7 @@ router.post(
   adminAuthMiddleware,
   changePasswordBySubAdmin
 );
+
+router.get("/duplicate-ip-users", adminAuthMiddleware, getDuplicateIPUsers);
 
 export default router;

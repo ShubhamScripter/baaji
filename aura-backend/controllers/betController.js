@@ -1642,6 +1642,8 @@ export const updateResultOfBets = async (req, res) => {
       userId: { $exists: true },
     });
 
+    console.log('gameBets is:', gameBets);
+
     if (!gameBets.length) {
       return (
         res?.status?.(200).json({ message: 'No unsettled bets found' }) || {
@@ -3962,6 +3964,8 @@ export const getProfitlossHistory = async (req, res) => {
     marketId,
   } = req.query;
 
+  console.log("profitloss history query", req.query);
+
   try {
     const pageNum = Math.max(parseInt(page), 1);
     const limitNum = Math.max(parseInt(limit), 1);
@@ -3973,7 +3977,9 @@ export const getProfitlossHistory = async (req, res) => {
     };
 
     if (startDate && endDate) {
-      betQuery.date = getDateRangeUTC(startDate, endDate);
+      const range = getDateRangeUTC(startDate, endDate);
+      // Prefer settlement time when present, else fallback to createdAt (timestamps)
+      betQuery.$or = [{ settledAt: range }, { createdAt: range }];
     }
 
     // Apply filters if provided
@@ -3984,6 +3990,8 @@ export const getProfitlossHistory = async (req, res) => {
       betQuery.market_id = { $regex: `${marketId}$` };
     }
     const fullFilterMode = gameName && eventName && marketName;
+
+    console.log("betQuery", betQuery);
 
     const bets = await betHistoryModel.find(betQuery);
 

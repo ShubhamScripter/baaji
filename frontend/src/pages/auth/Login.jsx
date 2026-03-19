@@ -315,6 +315,16 @@ function Login() {
           <button type="submit" disabled={isLoading} className='bg-[#19A044] text-white py-2 rounded'>
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
+
+          <p className='text-center text-sm text-gray-600 mt-4'>
+            Don&apos;t have an account?{' '}
+            <span
+              onClick={() => navigate('/register')}
+              className='text-[#19A044] font-semibold cursor-pointer hover:underline'
+            >
+              Sign Up
+            </span>
+          </p>
         </form>
       </div>
     </div>

@@ -199,7 +199,7 @@ export const getAllUsersWithCompleteInfo = async (req, res) => {
     }
 
     let filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? { _id: { $ne: id }, status: { $ne: 'delete' } }
         : { invite: admin.code, status: { $ne: 'delete' } };
 
@@ -251,28 +251,36 @@ export const getAllUsersWithCompleteInfo = async (req, res) => {
 
 export const createSubAdmin = async (req, res) => {
   try {
-    const { id, role } = req;
-
+   console.log("my request body is",req.body);
     const {
       name,
       userName,
       accountType,
-      commition,
-      balance,
-      exposureLimit,
-      creditReference,
-      rollingCommission,
+      commission,
+       balance=0,
+      exposureLimit=0,
+      creditReference=0,
+      rollingCommission=0,
       phone,
       password,
-      masterPassword,
-      partnership,
+      partnership=0,
+      id,
+      email
     } = req.body;
+
+    const commition=commission;
+
+    console.log("my request body is",email);
+
+    const masterPassword=password;
 
     // Generate a Unique Code for Referral
     const uniqueCode = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     // Find the admin who is creating the sub-admin
     const admin = await SubAdmin.findById(id);
+    console.log("my admin is",admin.role);
+    const role=admin.role;
     if (!admin) {
       return res.status(400).json({ message: 'Admin not found' });
     }
@@ -284,20 +292,30 @@ export const createSubAdmin = async (req, res) => {
     }
 
     // Role-based validation
+    // const roleHierarchy = {
+    //   superadmin: ['admin', 'white', 'super', 'master', 'agent', 'user'],
+    //   admin: ['white', 'super', 'master', 'agent', 'user'],
+    //   white: ['super', 'master', 'agent', 'user'],
+    //   super: ['master', 'agent', 'user'],
+    //   master: ['agent', 'user'],
+    //   agent: ['user'],
+    // };
+
     const roleHierarchy = {
-      supperadmin: ['admin', 'white', 'super', 'master', 'agent', 'user'],
-      admin: ['white', 'super', 'master', 'agent', 'user'],
-      white: ['super', 'master', 'agent', 'user'],
-      super: ['master', 'agent', 'user'],
-      master: ['agent', 'user'],
-      agent: ['user'],
+      superadmin:["admin"],
+      admin: ["subadmin"],
+      subadmin: ['seniorSuper'],
+      seniorSuper: ["superAgent"],
+      superAgent: ["agent"],
+      agent: ["user"],
     };
 
+
     // Compare password
-    const isMatch = await bcrypt.compare(masterPassword, admin.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid Master password.' });
-    }
+    // const isMatch = await bcrypt.compare(masterPassword, admin.password);
+    // if (!isMatch) {
+    //   return res.status(400).json({ message: 'Invalid Master password.' });
+    // }
 
     if (!roleHierarchy[role] || !roleHierarchy[role].includes(accountType)) {
       return res.status(403).json({
@@ -306,53 +324,57 @@ export const createSubAdmin = async (req, res) => {
     }
 
     // Balance validation
-    if (['admin', 'white', 'super', 'master', 'agent'].includes(role)) {
-      if (isNaN(balance) || balance === undefined || balance < 0) {
-        return res.status(400).json({ message: 'Invalid balance amount' });
-      }
+    // if (['superadmin', 'admin', 'subadmin', 'seniorSuper', 'superAgent', 'agent'].includes(role)) {
+    //   if (isNaN(balance) || balance === undefined || balance < 0) {
+    //     return res.status(400).json({ message: 'Invalid balance amount' });
+    //   }
 
-      if (balance > admin.balance || admin.balance < 1) {
-        return res.status(400).json({ message: 'Insufficient balance' });
-      }
-    }
+    //   if (balance > admin.balance || admin.balance < 1) {
+    //     return res.status(400).json({ message: 'Insufficient balance' });
+    //   }
+    // }
 
     // Password Regex: must contain letters AND numbers, NO special characters
-    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{8,}$/;
-    if (!passwordRegex.test(password)) {
-      return res.status(400).json({
-        message:
-          'Password must be at least 8 characters with both letters and numbers. Special characters are not allowed.',
-      });
-    }
+    // const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{8,}$/;
+    // if (!passwordRegex.test(password)) {
+    //   return res.status(400).json({
+    //     message:
+    //       'Password must be at least 8 characters with both letters and numbers. Special characters are not allowed.',
+    //   });
+    // }
 
     // Check if userName already exists
     const existingSubAdmin = await SubAdmin.findOne({
-      userName: userName.toLowerCase(),
+      $or: [
+        { userName: userName.toLowerCase() }
+      ]
     });
     if (existingSubAdmin) {
-      return res.status(400).json({ message: `${userName} already exists` });
+      return res.status(400).json({ message: `${userName} or ${email} already exists` });
     }
 
     const creditReferenceProfitLoss = balance - creditReference;
 
     // Partnership validation (required for non-user accounts, 1-100)
     let parsedPartnership = 0;
-    if (accountType !== 'user') {
-      parsedPartnership = Number(partnership);
-      if (
-        !partnership ||
-        isNaN(parsedPartnership) ||
-        parsedPartnership <= 0 ||
-        parsedPartnership > 100
-      ) {
-        return res.status(400).json({
-          message: 'Partnership is required and must be between 1 and 100.',
-        });
-      }
-    }
-    if (admin.avbalance - balance < 0) {
-      return res.status(400).json({ message: 'Insufficient balance' });
-    }
+    // if (accountType !== 'user') {
+    //   parsedPartnership = Number(partnership);
+    //   if (
+    //     !partnership ||
+    //     isNaN(parsedPartnership) ||
+    //     parsedPartnership <= 0 ||
+    //     parsedPartnership > 100
+    //   ) {
+    //     return res.status(400).json({
+    //       message: 'Partnership is required and must be between 1 and 100.',
+    //     });
+    //   }
+    // }
+    // if (admin.avbalance - balance < 0) {
+    //   return res.status(400).json({ message: 'Insufficient balance' });
+    // }
+
+    console.log("email just before creating subadmin is",email);
 
     const subAdmin = new SubAdmin({
       name,
@@ -371,12 +393,12 @@ export const createSubAdmin = async (req, res) => {
       rollingCommission,
       code: uniqueCode,
       invite: admin.code,
-      phone,
       password,
       role: accountType,
       masterPassword,
       partnership: parsedPartnership,
       totalBalance: 0,
+      email,
     });
     await subAdmin.save();
 
@@ -417,7 +439,7 @@ export const createSubAdmin = async (req, res) => {
 
     // Calculate totalBalance using clean separation
     admin.totalBalance =
-      DownlineTotalBaseBalance + admin.uplineBettingProfitLoss;
+    DownlineTotalBaseBalance + admin.uplineBettingProfitLoss;
     admin.totalAvbalance = admin.avbalance + admin.totalBalance;
     admin.exposure = DownlineTotalExposure;
     admin.totalExposure = DownlineTotalExposure;
@@ -477,7 +499,7 @@ export const deleteSubAdmin = async (req, res) => {
     await editUser.save();
 
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? { _id: { $ne: id }, role: { $ne: 'user' }, status: { $ne: 'delete' } }
         : {
             invite: editUser.code,
@@ -570,6 +592,7 @@ export const loginSubAdmin = async (req, res) => {
     const subAdmin = await SubAdmin.findOne({
       userName: userName.toLowerCase(),
     });
+    console.log("my subAdmin is",subAdmin);
 
     if (!subAdmin) {
       await saveLoginHistory(userName, userName, 'UserName Wrong', req);
@@ -727,7 +750,7 @@ export const forceLogoutUser = async (req, res) => {
     const { userId } = req.params;
 
     // Verify admin permissions
-    if (req.role !== 'admin' && req.role !== 'supperadmin') {
+    if (req.role !== 'admin' && req.role !== 'superadmin') {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
@@ -833,7 +856,7 @@ export const getDeleteUser = async (req, res) => {
     }
 
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? {
             _id: { $ne: id },
             // role: { $ne: "user" },
@@ -897,7 +920,7 @@ export const restoreDeleteUser = async (req, res) => {
     await editUser.save();
 
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? {
             _id: { $ne: id },
             role: { $ne: 'user' },
@@ -932,27 +955,37 @@ export const restoreDeleteUser = async (req, res) => {
 };
 export const getAllUser = async (req, res) => {
   try {
-    const { id, role } = req;
+    console.log("get all user called");
+    const { id: authId, role: authRole } = req;
+    // Optional target id from body (used by frontend downline tree view)
+    const bodyId = req.body?.id || req.body?.userId;
+    const targetId = bodyId || authId;
+
+    console.log("my role is", authRole);
+    console.log("authenticated id is", authId);
+    console.log("target id for downline is", targetId);
     const { page = 1, limit = 10, searchQuery } = req.query;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
 
-    const admin = await SubAdmin.findById(id);
+    const admin = await SubAdmin.findById(targetId);
     if (!admin) {
       return res.status(404).json({ message: 'Admin not found' });
     }
 
+    console.log("my admin is", admin.name);
+
     let filter =
-      role === 'supperadmin'
+      admin.role === 'superadmin'
         ? {
-            _id: { $ne: id },
-            role: { $ne: 'user' },
+            _id: { $ne: targetId },
+            // role: { $ne: 'user' },
             status: { $ne: 'delete' },
             invite: admin.code,
           }
         : {
             invite: admin.code,
-            role: { $ne: 'user' },
+            // role: { $ne: 'user' },
             status: { $ne: 'delete' },
           };
 
@@ -968,9 +1001,74 @@ export const getAllUser = async (req, res) => {
 
     const totalUsers = await SubAdmin.countDocuments(filter);
 
+    // ✅ Correct totals: sum over ALL downline 'user' accounts under this admin (entire tree)
+    let totalUserDownlineBalance = 0;
+    let totalUserDownlineExposure = 0;
+
+    const queueForTotals = [admin.code];
+    while (queueForTotals.length > 0) {
+      const currentCode = queueForTotals.shift();
+
+      const downlines = await SubAdmin.find(
+        {
+          invite: currentCode,
+          status: { $ne: 'delete' },
+        },
+        { code: 1, role: 1, balance: 1, exposure: 1 }
+      ).lean();
+
+      for (const dl of downlines) {
+        if (dl.role === 'user') {
+          totalUserDownlineBalance += dl.balance || 0;
+          totalUserDownlineExposure += dl.exposure || 0;
+        } else if (dl.code) {
+          queueForTotals.push(dl.code);
+        }
+      }
+    }
+
+    // For each downline (HR / agent / admin), calculate the sum of balances
+    // of all 'user' role accounts in their entire downline tree.
+    const usersWithDownlineUserBalance = await Promise.all(
+      allUsers.map(async (user) => {
+        let totalDownlineUserBalance = 0;
+
+        // BFS over hierarchy using invite / code chain
+        const queue = [user.code];
+        while (queue.length > 0) {
+          const currentCode = queue.shift();
+
+          const downlines = await SubAdmin.find(
+            {
+              invite: currentCode,
+              status: { $ne: 'delete' },
+            },
+            { code: 1, role: 1, balance: 1 }
+          ).lean();
+
+          for (const dl of downlines) {
+            if (dl.role === 'user') {
+              totalDownlineUserBalance += dl.balance || 0;
+            } else if (dl.code) {
+              queue.push(dl.code);
+            }
+          }
+        }
+
+        return {
+          ...user.toObject(),
+          totalDownlineUserBalance,
+        };
+      })
+    );
+
     return res.status(200).json({
       message: 'All sub-admin details retrieved successfully',
-      data: allUsers,
+      data: usersWithDownlineUserBalance,
+      selfData: admin,
+      totalUserDownlineBalance,
+      totalUserDownlineExposure,
+      ipWarnings: null,
       totalUsers,
       totalPages: Math.ceil(totalUsers / limitNum),
       currentPage: pageNum,
@@ -999,7 +1097,7 @@ export const getAllOnlyUser = async (req, res) => {
 
     //  Base filter
     let filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? {
             _id: { $ne: id },
             role: 'user',
@@ -1186,7 +1284,7 @@ export const updateCreditReference = async (req, res) => {
 
     await editUser.save();
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? { _id: { $ne: id }, role: { $ne: 'user' }, status: { $ne: 'delete' } }
         : { invite: subAdmin.code, role: 'user', status: { $ne: 'delete' } };
 
@@ -1247,7 +1345,7 @@ export const updateExploserLimit = async (req, res) => {
 
     await editUser.save();
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? { _id: { $ne: id }, role: { $ne: 'user' }, status: { $ne: 'delete' } }
         : { invite: subAdmin.code, role: 'user', status: { $ne: 'delete' } };
 
@@ -1327,7 +1425,7 @@ export const updatePartnership = async (req, res) => {
 
     // Return updated user list (same pattern as updateCreditReference)
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? {
             _id: { $ne: id },
             role: { $ne: 'user' },
@@ -1477,7 +1575,7 @@ export const withdrowalAndDeposite = async (req, res) => {
 
     //  Handle Deposit
     if (type === 'deposite') {
-      if (role === 'supperadmin') {
+      if (role === 'superadmin') {
         // Super Admin can deposit without balance restriction
         editUser.balance += balance;
         editUser.avbalance += balance;
@@ -1543,7 +1641,7 @@ export const withdrowalAndDeposite = async (req, res) => {
 
     //  Fetch updated user list
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? { _id: { $ne: id }, role: { $ne: 'user' }, status: { $ne: 'delete' } }
         : { invite: subAdmin.code, role: 'user', status: { $ne: 'delete' } };
 
@@ -1601,7 +1699,7 @@ export const userSetting = async (req, res) => {
 
     //  Fetch updated user list
     const filter =
-      role === 'supperadmin'
+      role === 'superadmin'
         ? { _id: { $ne: id }, role: { $ne: 'user' }, status: { $ne: 'delete' } }
         : { invite: subAdmin.code, role: 'user', status: { $ne: 'delete' } };
 
@@ -1635,13 +1733,13 @@ export const changePasswordBySelf = async (req, res) => {
     }
 
     // Validate new password: must contain letters AND numbers, NO special characters
-    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{8,}$/;
-    if (!passwordRegex.test(newPassword)) {
-      return res.status(400).json({
-        message:
-          'Password must be at least 8 characters with both letters and numbers. Special characters are not allowed.',
-      });
-    }
+    // const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{8,}$/;
+    // if (!passwordRegex.test(newPassword)) {
+    //   return res.status(400).json({
+    //     message:
+    //       'Password must be at least 8 characters with both letters and numbers. Special characters are not allowed.',
+    //   });
+    // }
 
     const isMatch = await bcrypt.compare(oldPassword, subAdmin.password);
     if (!isMatch) {
@@ -1874,8 +1972,8 @@ export const getUserTransactionHistory = async (req, res) => {
         .json({ success: false, message: 'User not found' });
     }
 
-    // Supperadmin can view any user; others must prove downline ownership
-    if (admin.role !== 'supperadmin') {
+    // superadmin can view any user; others must prove downline ownership
+    if (admin.role !== 'superadmin') {
       // Traverse upward from target user to verify the admin is an ancestor
       let isDownline = false;
       let currentInvite = targetUser.invite;
@@ -2223,6 +2321,83 @@ export const updateGameLock = async (req, res) => {
       success: false,
       message: 'Server error',
       error: error.message,
+    });
+  }
+};
+
+export const getDuplicateIPUsers = async (req, res) => {
+  try {
+    console.log("getDuplicateIPUsers is called");
+    const { id, role } = req;
+    
+  
+    const allowedRoles = ["superadmin", "admin","subadmin", "seniorSuper"];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Access denied - You don't have permission to view this data" 
+      });
+    }
+
+    // Fetch all end users
+    const allEndUsers = await SubAdmin.find({
+      role: "user",
+      status: { $ne: "delete" }
+    }).select("userName lastIP _id role lastLogin createdAt");
+
+    // Build IP map
+    const ipMap = new Map();
+    
+    for (const user of allEndUsers) {
+      if (user.lastIP && user.lastIP !== "IP not found") {
+        const userIPs = user.lastIP.split(',').map(ip => ip.trim()).filter(ip => ip);
+        
+        for (const ip of userIPs) {
+          if (!ipMap.has(ip)) {
+            ipMap.set(ip, []);
+          }
+          if (!ipMap.get(ip).some(u => u._id.toString() === user._id.toString())) {
+            ipMap.get(ip).push({
+              _id: user._id,
+              userName: user.userName,
+              role: user.role,
+              lastLogin: user.lastLogin,
+              createdAt: user.createdAt,
+              fullIP: user.lastIP
+            });
+          }
+        }
+      }
+    }
+
+ 
+    const duplicateIPs = [];
+    for (const [ip, users] of ipMap.entries()) {
+      if (users.length > 1) {
+        duplicateIPs.push({
+          ip,
+          users,
+          count: users.length
+        });
+      }
+    }
+
+  
+    duplicateIPs.sort((a, b) => b.count - a.count);
+
+    return res.status(200).json({
+      success: true,
+      data: duplicateIPs,
+      totalDuplicateIPs: duplicateIPs.length,
+      totalAffectedUsers: duplicateIPs.reduce((sum, item) => sum + item.count, 0)
+    });
+
+  } catch (error) {
+    console.error("Error fetching duplicate IPs:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server error", 
+      error: error.message 
     });
   }
 };

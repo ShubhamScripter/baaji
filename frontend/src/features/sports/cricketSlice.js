@@ -4,6 +4,22 @@ import api from "../../utils/axiosConfig";
 
 // Async thunk to fetch cricket data
 
+const normalizeCricketMatches = (matches) => {
+  if (!Array.isArray(matches)) return [];
+  return matches.map((m) => ({
+    ...m,
+    // League/group title for UI grouping (Cricket.jsx groups by `match.title`)
+    title: m?.title ?? m?.cname ?? m?.leagueName ?? m?.competition ?? "Unknown League",
+    // Ensure the UI has a stable id/match name (Cricket.jsx uses `match.id` and `match.match`)
+    id: m?.id ?? m?.gmid ?? m?.eventId ?? m?.gameId,
+    match: m?.match ?? m?.ename ?? m?.eventName ?? m?.name ?? "",
+    // Normalize inplay flag naming
+    inplay: m?.inplay ?? m?.iplay ?? false,
+    // Normalize date string field for Today/Tomorrow filtering (Cricket.jsx uses `match.date`)
+    date: m?.date ?? m?.stime ?? m?.startTime ?? m?.start_date ?? null,
+  }));
+};
+
 export const fetchCricketData = createAsyncThunk(
   "cricket/fetchCricketData",
   async (_, { rejectWithValue }) => {
@@ -11,8 +27,7 @@ export const fetchCricketData = createAsyncThunk(
       const response = await api.get("/cricket/matches"); // Your backend API
       console.log("responce", response);
 
-
-      return response.data.matches;
+      return normalizeCricketMatches(response.data.matches);
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || "Failed to fetch matches"
@@ -25,8 +40,8 @@ export const fetchCricketInplayData = createAsyncThunk(
   "cricket/fetchCricketInplayData",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/cricket/inplay");
-      return response.data.matches;
+      const response = await api.get("/cricket/matches");
+      return normalizeCricketMatches(response.data.matches);
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || "Failed to fetch in-play matches"

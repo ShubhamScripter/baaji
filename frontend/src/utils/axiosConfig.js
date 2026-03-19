@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api",
+   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api",
   // baseURL: "/api",
 
   withCredentials: true, // important for cookies/session if backend uses them
@@ -46,7 +46,7 @@ api.interceptors.response.use(
 
 export default api;
 
-export const host = "ws://localhost:8000";
+export const host = "ws://localhost:3000";
 // export const host="https://ad.7billion.online"
 // export const host = "/";
 

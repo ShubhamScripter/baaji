@@ -316,12 +316,12 @@ import { GiHamburgerMenu } from "react-icons/gi";
 import { BiRefresh } from "react-icons/bi";
 import { motion } from "motion/react";
 import { useSelector, useDispatch } from "react-redux";
-import { getUser } from "../../features/auth/authSlice";
+import { getUser, setLiveBalance } from "../../features/auth/authSlice";
 import Navbar from "./Navbar";
 import Header from "./Header";
 import Logo from "../../assets/logo.png";
 // import Logonew from '../../assets/newdiamondlogo.png'
-import { host } from "../../utils/axiosConfig";
+import { wsClient } from "../../utils/wsClient";
 import { useLocation } from "react-router-dom";
 function HeaderLogin() {
   const location = useLocation();
@@ -353,48 +353,41 @@ function HeaderLogin() {
     }
   }, [location.pathname]);
 
-  // 🔗 Setup WebSocket connection
+  // 🔗 Setup WebSocket connection (shared singleton)
   useEffect(() => {
     if (!user) return;
 
-    // Create a WebSocket connection
-    socketRef.current = new WebSocket(host);
-
-    socketRef.current.onopen = () => {
-      console.log("🔗 Connected to WebSocket");
-
-      // Identify user for targeted messages
-      socketRef.current.send(
-        JSON.stringify({
-          type: "identify",
-          userName: user.userName,
-        })
-      );
-    };
-
-    // Handle messages from the backend
-    socketRef.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.type === "balance_update") {
-          console.log("💰 Balance update received:", data);
-          handleRefresh(); // auto-refresh on balance change
+    // Register listener and keep socket alive
+    const unsubscribe = wsClient.subscribe((data) => {
+      if (data?.type === "balance_update") {
+        if (data?.userId && user?._id && String(data.userId) !== String(user._id)) {
+          return;
         }
-      } catch (err) {
-        console.error("❌ Invalid socket message:", event.data);
+        console.log("balance update received in header login", data);
+        if (typeof data?.newBalance !== "undefined") {
+          dispatch(setLiveBalance(data.newBalance));
+        }
+        // Keep UI instant via WS; sync from API shortly after.
+        setTimeout(() => {
+          handleRefresh();
+        }, 400);
       }
-    };
+    });
 
-    socketRef.current.onclose = () => {
-      console.log("❌ WebSocket disconnected");
-    };
+    // Prefer registering by userId for backend targeting when available
+    if (user?._id) {
+      wsClient.send({ type: "register", userId: user._id });
+    }
 
-    // Cleanup when component unmounts
+    socketRef.current = { unsubscribe };
+
     return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
+      try {
+        socketRef.current?.unsubscribe?.();
+      } catch {
+        // ignore
       }
+      socketRef.current = null;
     };
   }, [user]);
 

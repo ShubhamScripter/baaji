@@ -729,7 +729,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {createBet,createfancyBet,getPendingBetAmo,messageClear} from '../../features/sports/betReducer'
 import BetCard from './BetCard';
-import { host } from '../../utils/axiosConfig';
+import { wsClient } from '../../utils/wsClient';
 import { fetchCricketBatingData } from '../../features/sports/cricketSlice';
 import Spinner from '../../components/Spinner';
 import { div } from 'motion/react-client';
@@ -808,39 +808,19 @@ function Fullmarkett() {
 
   useEffect(() => {
     if (!gameid) return;
+    // subscribe to betting updates for this game
+    wsClient.send({ type: "subscribe", gameid, apitype: "cricket" });
 
-    const socket = new WebSocket(host);
-
-    // socket.onopen = () => {
-    //   console.log("✅ WebSocket connected");
-    //   socket.send(JSON.stringify({ type: "subscribe", gameid }));
-    // };
-
-    socket.onopen = () => {
-      console.log("✅ WebSocket connected");
-      socket.send(JSON.stringify({ type: "subscribe", gameid, apitype: "cricket" }));
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.gameid === gameid) {
-          setBettingData(message.data);
-        }
-      } catch (err) {
-        console.error("❌ Error parsing message:", err);
+    const unsubscribe = wsClient.subscribe((message) => {
+      if (
+        message?.type === "bettingData" &&
+        String(message.gameid) === String(gameid)
+      ) {
+        setBettingData(message.data);
       }
-    };
+    });
 
-    socket.onerror = (err) => {
-      console.error("❌ WebSocket error:", err);
-    };
-
-    socket.onclose = () => {
-      console.log("❌ WebSocket disconnected");
-    };
-
-    return () => socket.close();
+    return () => unsubscribe();
   }, [gameid]);
 
     useEffect(() => {
@@ -970,36 +950,44 @@ console.log("betting data",bettingData)
   //   : [];
 //  console.log("match odd list",matchOddsList)
 
-const dataSource = Array.isArray(bettingData) && bettingData.length > 0 ? bettingData : battingData;
+  const dataSource =
+    Array.isArray(bettingData) && bettingData.length > 0 ? bettingData : battingData;
 console.log("data source",dataSource)
+
+  const normalizeRunnersToSection = (market) => {
+    // Provider sometimes sends `section` (with nat/odds), sometimes `runners` (with back/lay).
+    if (Array.isArray(market?.section) && market.section.length > 0) return market.section;
+    if (!Array.isArray(market?.runners)) return [];
+    return market.runners.map((runner) => ({
+      nat: runner.name,
+      team: runner.name,
+      sid: runner.id,
+      gstatus: runner.status,
+      status: runner.status,
+      odds: [
+        ...(runner.back?.[0]
+          ? [{ oname: 'back1', odds: runner.back[0].price, size: runner.back[0].size }]
+          : []),
+        ...(runner.lay?.[0]
+          ? [{ oname: 'lay1', odds: runner.lay[0].price, size: runner.lay[0].size }]
+          : []),
+      ],
+    }));
+  };
 
   // Match Odds List
   const matchOddsList = Array.isArray(dataSource)
     ? dataSource
         .filter(
           (item) =>
-            item.name === "Match Odds" ||
-            item.mtype === "MATCH_ODDS"
+            item?.name === "Match Odds" ||
+            item?.mtype === "MATCH_ODDS" ||
+            item?.mname === "Match Odds" ||
+            item?.mname === "MATCH_ODDS"
         )
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                team: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                status: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           matched: market.matched,
@@ -1017,28 +1005,14 @@ console.log("data source",dataSource)
     ? dataSource
         .filter(
           (item) =>
-            item.name === "Tied Match" ||
-            item.mtype === "TIED_MATCH"
+            item?.name === "Tied Match" ||
+            item?.mtype === "TIED_MATCH" ||
+            item?.mname === "Tied Match" ||
+            item?.mname === "TIED_MATCH"
         )
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                team: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                status: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           matched: market.matched,
@@ -1054,26 +1028,10 @@ console.log("data source",dataSource)
 
   const BookmakerList = Array.isArray(dataSource)
     ? dataSource
-        .filter((item) => item.name === "BOOKMAKER")
+        .filter((item) => item?.name === "BOOKMAKER" || item?.mname === "Bookmaker")
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                nat: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                gstatus: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           status: market.status,
@@ -1097,47 +1055,50 @@ console.log("data source",dataSource)
     }
   }, [successMessage, errorMessage, dispatch]);
 
-  // const fancy1List = bettingData?.filter((item) => item.mname === "fancy1");
-
-  // const fancy1Data =
-  //   Array.isArray(fancy1List) && fancy1List.length > 0 && fancy1List[0].section
-  //     ? fancy1List[0].section.map((sec) => ({
-  //       team: sec.nat,
-  //       sid: sec.sid,
-  //       odds: sec.odds,
-  //       max: sec.max,
-  //       min: sec.min,
-  //       mname: fancy1List[0].mname, // ✅ Access from first item
-  //       status: fancy1List[0].status, // ✅ Access from first item
-  //     }))
-  //     : [];
-  //   // console.log("fancy1 data",fancy1Data) oddeven
-  const fancy1List = Array.isArray(dataSource)
-  ? dataSource.filter((item) => item.mtype === "INNINGS_RUNS")
-  : [];
-console.log("fancy1List........",fancy1List)
-const fancy1Data = fancy1List.flatMap((market) =>
-  (market.runners || []).map((runner) => ({
-    marketid: market.id,
-    event_id: market.groupById,
-    team: runner.name,
-    sid: runner.id,
-    odds: [
-      ...(runner.back?.[0]
-        ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].line }]
-        : []),
-      ...(runner.lay?.[0]
-        ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].line }]
-        : []),
-    ],
-    min: market.minLiabilityPerBet ?? market.min ?? null,
-    max: market.maxLiabilityPerBet ?? market.max ?? null,
-    status: market.status ?? runner.status,
-    statusLabel: market.statusLabel ?? runner.statusLabel,
-  }))
-);
-console.log("fancy1 data.....",fancy1Data)
-
+  
+  console.log("bettingData............",bettingData)
+  const fancy1List = bettingData?.filter((item) => item.mname === "Normal");
+console.log("fancy1List............",fancy1List)
+ console.log("fancy2List............",fancy1List?.[0]?.section)
+  const fancy1Data =
+    Array.isArray(fancy1List) && fancy1List.length > 0 && fancy1List[0].section
+      ? fancy1List?.[0].section.map((sec) => ({
+        team: sec.nat,
+        sid: sec.sid,
+        odds: sec.odds,
+        max: sec.max,
+        min: sec.min,
+        mname: fancy1List[0].mname, // ✅ Access from first item
+        status: sec.gstatus, // ✅ Access from first item
+      }))
+      : [];
+    // console.log("fancy1 data",fancy1Data) oddeven
+//   const fancy1List = Array.isArray(dataSource)
+//   ? dataSource.filter((item) => item.mtype === "INNINGS_RUNS")
+//   : [];
+// console.log("fancy1List........",fancy1List)
+// const fancy1Data = fancy1List.flatMap((market) =>
+//   (market.runners || []).map((runner) => ({
+//     marketid: market.id,
+//     event_id: market.groupById,
+//     team: runner.name,
+//     sid: runner.id,
+//     odds: [
+//       ...(runner.back?.[0]
+//         ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].line }]
+//         : []),
+//       ...(runner.lay?.[0]
+//         ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].line }]
+//         : []),
+//     ],
+//     min: market.minLiabilityPerBet ?? market.min ?? null,
+//     max: market.maxLiabilityPerBet ?? market.max ?? null,
+//     status: market.status ?? runner.status,
+//     statusLabel: market.statusLabel ?? runner.statusLabel,
+//   }))
+// );
+// console.log("fancy1 data.....",fancy1Data)
+console.log("fancy1 data............",fancy1Data);
   // const oddevenList = bettingData?.filter((item) => item.mname === "oddeven");
   // console.log("odd even list ",oddevenList)
   // const oddevenData =
@@ -1342,96 +1303,11 @@ const fetchScorecard = async (isInitial = false) => {
     }
   }, [scorecardHtml, isLive]);
 
-  // Fetch live stream when Live is selected
+  // Live stream disabled: do not fetch external live stream to avoid errors
   useEffect(() => {
-    if (!user) return;
-    const fetchLiveStream = async () => {
-      if (!isLive || !gameid || !match) {
-        setLiveStreamHtml(null);
-        return;
-      }
-
-      try {
-        setLiveStreamLoading(true);
-        const response = await fetch('https://sporta-api.iomhost.com:4200/spb/match-live-stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            match_id: `${gameid}`,
-            sportsName: 'cricket',
-            match_name: match,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log("Live stream API response:", result);
-        
-        if (result.status && result.data) {
-          const streamData = result.data;
-          console.log("Live stream data:", streamData);
-          console.log("Data type:", typeof streamData);
-          
-          let streamUrl = null;
-          
-          // Check if result.data is already a direct URL
-          if (typeof streamData === 'string' && (streamData.startsWith('http://') || streamData.startsWith('https://'))) {
-            // It's already a URL string - use it directly
-            streamUrl = streamData.trim();
-            console.log("✅ Direct URL detected:", streamUrl);
-          } else if (typeof streamData === 'string') {
-            // Try to extract URL from HTML iframe string (fallback)
-            const srcMatch = streamData.match(/src=["']([^"']+)["']/);
-            streamUrl = srcMatch ? srcMatch[1].trim() : null;
-            console.log("Extracted URL from HTML:", streamUrl || "No URL found");
-          }
-          
-          // Validate the URL
-          if (streamUrl && streamUrl.length > 10) {
-            const isFallbackUrl = (
-              streamUrl.includes('not-available') ||
-              streamUrl.includes('unavailable') ||
-              streamUrl.includes('error') ||
-              (streamUrl.endsWith('.html') && !streamUrl.startsWith('http'))
-            );
-            
-            if (!isFallbackUrl) {
-              // Valid streaming URL
-              console.log("✅ Setting live stream URL:", streamUrl);
-              setLiveStreamSrc(streamUrl);
-              setLiveStreamHtml(null); // Clear HTML since we're using direct URL
-            } else {
-              console.log("❌ Invalid or fallback URL detected:", streamUrl);
-              setLiveStreamSrc(null);
-              setLiveStreamHtml(null);
-            }
-          } else {
-            console.log("❌ No valid stream URL found");
-            setLiveStreamSrc(null);
-            setLiveStreamHtml(null);
-          }
-        } else {
-          console.log("❌ API response invalid:", result);
-          setLiveStreamSrc(null);
-          setLiveStreamHtml(null);
-          throw new Error(result.message || 'Failed to fetch live stream');
-        }
-      } catch (error) {
-        console.error('Error fetching live stream:', error);
-        setLiveStreamHtml(null);
-        setLiveStreamSrc(null);
-        toast.error('Failed to load live stream');
-      } finally {
-        setLiveStreamLoading(false);
-      }
-    };
-
-    fetchLiveStream();
+    setLiveStreamHtml(null);
+    setLiveStreamSrc(null);
+    setLiveStreamLoading(false);
   }, [isLive, gameid, match]);
 
   // Reset live stream when switching away from Live
@@ -1549,61 +1425,53 @@ const fetchScorecard = async (isInitial = false) => {
         <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
           {isLive ? (
             <>
-              {liveStreamLoading ? (
-                <div className="w-full h-[400px] flex items-center justify-center bg-black">
-                  <div className="text-white">Loading live stream...</div>
-                </div>
-              ) : liveStreamSrc ? (
-                <iframe
-                  key={liveStreamSrc}
-                  src={liveStreamSrc}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    height: '300px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    margin: 0,
-                    padding: 0,
-                    verticalAlign: 'top',
-                    backgroundColor: '#000'
-                  }}
-                  title="Live Stream"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  frameBorder="0"
-                  scrolling="no"
-                />
-              ) : (
-                // <div className="w-full h-[300px] flex flex-col items-center justify-center bg-black">
-                //   <div className="text-white text-lg mb-2">Live stream not available</div>
-                //   <div className="text-gray-400 text-sm">The stream will appear here when it becomes available</div>
-                // </div>
-                null
-              )}
+              <iframe
+                src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
+                title="Watch Live"
+                className="w-full"
+                style={{ height: "50vh", border: "none" }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+              />
+              <div className="bg-black text-white text-xs px-3 py-2">
+                If video doesn&apos;t load,{" "}
+                <a
+                  className="underline"
+                  href={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  open in new tab
+                </a>
+                .
+              </div>
             </>
           ) : (
             <>
-              {scorecardHtml ? (
-                <iframe
-                  key={scorecardHtml.substring(0, 50)} // Force re-render when content changes
-                  ref={scorecardIframeRef}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    height: '200px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    margin: 0,
-                    padding: 0,
-                    verticalAlign: 'top'
-                  }}
-                  title="Cricket Scorecard"
-                />
-              ) : (
-                // <img src={graph} alt="graph" />
-                null
-              )}
+              <iframe
+                src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+                allowFullScreen
+                className="w-full"
+                title="Live Score"
+                style={{ height: "260px", border: "none" }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+              />
+              <div className="bg-black text-white text-xs px-3 py-2">
+                If score doesn&apos;t load,{" "}
+                <a
+                  className="underline"
+                  href={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  open in new tab
+                </a>
+                .
+              </div>
             </>
           )}
         </div>

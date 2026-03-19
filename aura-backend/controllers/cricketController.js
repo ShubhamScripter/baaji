@@ -41,6 +41,8 @@ export const getCricketData = async (req, res) => {
             id: match.gmid,
             match: match.ename,
             date: match.stime,
+            // League/competition name for frontend grouping
+            cname: match.cname,
             channels: [],
             odds: oddsArr,
             inplay: match.iplay,
@@ -67,6 +69,8 @@ export const getCricketData = async (req, res) => {
 };
 
 export const fetchCrirketBettingData = async (req, res) => {
+
+  console.log('my fetchCrirketBettingData');
   const { gameid } = req.query;
 
   if (!gameid) {

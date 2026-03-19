@@ -327,7 +327,7 @@ import Sportbook from '../../components/leaguescomp/Sportbook';
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import BetCard from './BetCard';
-import { host } from '../../utils/axiosConfig';
+import { wsClient } from '../../utils/wsClient';
 import { fetchCricketBatingData } from '../../features/sports/cricketSlice';
 import { fetchSoccerBatingData } from '../../features/sports/soccerSlice';
 import {fetchTannisBatingData} from '../../features/sports/tennisSlice'
@@ -392,34 +392,18 @@ function Fullmarket2() {
   // ✅ WebSocket setup - Match cricket pattern
   useEffect(() => {
     if (!gameid) return;
+    wsClient.send({ type: "subscribe", gameid, apitype: "tennis" });
 
-    const socket = new WebSocket(host);
-
-    socket.onopen = () => {
-      console.log("✅ WebSocket connected");
-      socket.send(JSON.stringify({ type: "subscribe", gameid, apitype: "tennis" }));
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.gameid === gameid) {
-          setBettingData(message.data);
-        }
-      } catch (err) {
-        console.error("❌ Error parsing message:", err);
+    const unsubscribe = wsClient.subscribe((message) => {
+      if (
+        message?.type === "bettingData" &&
+        String(message.gameid) === String(gameid)
+      ) {
+        setBettingData(message.data);
       }
-    };
+    });
 
-    socket.onerror = (err) => {
-      console.error("❌ WebSocket error:", err);
-    };
-
-    socket.onclose = () => {
-      console.log("❌ WebSocket disconnected");
-    };
-
-    return () => socket.close();
+    return () => unsubscribe();
   }, [gameid]);
 
   useEffect(() => {
@@ -709,44 +693,78 @@ function Fullmarket2() {
   //   : [];
 
     // Use socket data for all lists
-    const dataSource = Array.isArray(bettingData) && bettingData.length > 0 ? bettingData : battingData;
-  console.log("data source for tennis",dataSource)
-    // Match Odds List
-    const matchOddsList = Array.isArray(dataSource)
+    const dataSource =
+      Array.isArray(bettingData) && bettingData.length > 0
+        ? bettingData
+        : Array.isArray(battingData)
+        ? battingData
+        : [];
+    console.log("data source for tennis", dataSource);
+
+    const normalizeRunnersToSection = (market) => {
+      if (Array.isArray(market?.section) && market.section.length > 0)
+        return market.section;
+      if (!Array.isArray(market?.runners)) return [];
+      return market.runners.map((runner) => ({
+        nat: runner.name,
+        team: runner.name,
+        sid: runner.id,
+        gstatus: runner.status,
+        odds: [
+          ...(runner.back?.[0]
+            ? [
+                {
+                  oname: "back1",
+                  odds: runner.back[0].price,
+                  size: runner.back[0].size,
+                },
+              ]
+            : []),
+          ...(runner.lay?.[0]
+            ? [
+                {
+                  oname: "lay1",
+                  odds: runner.lay[0].price,
+                  size: runner.lay[0].size,
+                },
+              ]
+            : []),
+        ],
+      }));
+    };
+
+    // Match Odds List – try to pick match odds; if none, show all markets
+    let matchOddsList = Array.isArray(dataSource)
       ? dataSource
           .filter(
             (item) =>
-              item.name === "Match Odds" ||
-              item.mtype === "MATCH_ODDS"
+              item?.name === "Match Odds" ||
+              item?.mtype === "MATCH_ODDS" ||
+              item?.mname === "Match Odds" ||
+              item?.mname === "MATCH_ODDS"
           )
           .map((market) => ({
             ...market,
-            section: market.runners
-              ? market.runners.map((runner) => ({
-                  team: runner.name,
-                  sid: runner.id,
-                  odds: [
-                    ...(runner.back?.[0]
-                      ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                      : []),
-                    ...(runner.lay?.[0]
-                      ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                      : []),
-                  ],
-                  max: market.maxLiabilityPerBet ?? market.max,
-                  min: market.minLiabilityPerBet ?? market.min,
-                  status: runner.status,
-                }))
-              : [],
+            section: normalizeRunnersToSection(market),
             max: market.maxLiabilityPerBet ?? market.max,
             min: market.minLiabilityPerBet ?? market.min,
             status: market.status,
           }))
       : [];
-    
- console.log("match odd list for tennis",matchOddsList)
-  const tiedMatchList = Array.isArray(bettingData)
-    ? bettingData.filter(
+
+    if (matchOddsList.length === 0 && Array.isArray(dataSource) && dataSource.length > 0) {
+      matchOddsList = dataSource.map((market) => ({
+        ...market,
+        section: normalizeRunnersToSection(market),
+        max: market.maxLiabilityPerBet ?? market.max,
+        min: market.minLiabilityPerBet ?? market.min,
+        status: market.status,
+      }));
+    }
+
+    console.log("match odd list for tennis", matchOddsList);
+  const tiedMatchList = Array.isArray(dataSource)
+    ? dataSource.filter(
       (item) =>
         item?.mname === "Tied Match" || item?.mname === "Bookmaker IPL CUP"
     )
@@ -759,26 +777,10 @@ function Fullmarket2() {
 
   const BookmakerList = Array.isArray(dataSource)
     ? dataSource
-        .filter((item) => item.name === "BOOKMAKER")
+        .filter((item) => item?.name === "BOOKMAKER" || item?.mname === "Bookmaker")
         .map((market) => ({
           ...market,
-          section: market.runners
-            ? market.runners.map((runner) => ({
-                nat: runner.name,
-                sid: runner.id,
-                odds: [
-                  ...(runner.back?.[0]
-                    ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
-                    : []),
-                  ...(runner.lay?.[0]
-                    ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
-                    : []),
-                ],
-                max: market.maxLiabilityPerBet ?? market.max,
-                min: market.minLiabilityPerBet ?? market.min,
-                gstatus: runner.status,
-              }))
-            : [],
+          section: normalizeRunnersToSection(market),
           max: market.maxLiabilityPerBet ?? market.max,
           min: market.minLiabilityPerBet ?? market.min,
           status: market.status,
@@ -868,8 +870,18 @@ function Fullmarket2() {
   //               bettingData?.[0]?.section?.[1]?.nat || 
   //               bettingData?.[0]?.runners?.[1]?.name || 
   //               "";
-  const team1 = dataSource?.[0]?.runners?.[0]?.name || "";
-  const team2 = dataSource?.[0]?.runners?.[1]?.name || "";
+  const team1 =
+    dataSource?.[0]?.runners?.[0]?.name ||
+    dataSource?.[0]?.section?.[0]?.nat ||
+    dataSource?.[0]?.section?.[0]?.team ||
+    match?.split(" - ")?.[0] ||
+    "";
+  const team2 =
+    dataSource?.[0]?.runners?.[1]?.name ||
+    dataSource?.[0]?.section?.[1]?.nat ||
+    dataSource?.[0]?.section?.[1]?.team ||
+    match?.split(" - ")?.[1] ||
+    "";
 
   const openBetSlip = (betData) => {
     setBetSlipData(betData);
@@ -932,61 +944,53 @@ function Fullmarket2() {
         <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
           {isLive ? (
             <>
-              {liveStreamLoading ? (
-                <div className="w-full h-[400px] flex items-center justify-center bg-black">
-                  <div className="text-white">Loading live stream...</div>
-                </div>
-              ) : liveStreamSrc ? (
-                <iframe
-                  key={liveStreamSrc}
-                  src={liveStreamSrc}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    height: '300px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    margin: 0,
-                    padding: 0,
-                    verticalAlign: 'top',
-                    backgroundColor: '#000'
-                  }}
-                  title="Live Stream"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  frameBorder="0"
-                  scrolling="no"
-                />
-              ) : (
-                // <div className="w-full h-[300px] flex flex-col items-center justify-center bg-black">
-                //   <div className="text-white text-lg mb-2">Live stream not available</div>
-                //   <div className="text-gray-400 text-sm">The stream will appear here when it becomes available</div>
-                // </div>
-                null
-              )}
+              <iframe
+                src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
+                title="Watch Live"
+                className="w-full"
+                style={{ height: "50vh", border: "none" }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+              />
+              <div className="bg-black text-white text-xs px-3 py-2">
+                If video doesn&apos;t load,{" "}
+                <a
+                  className="underline"
+                  href={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  open in new tab
+                </a>
+                .
+              </div>
             </>
           ) : (
             <>
-              {scorecardHtml ? (
-                <iframe
-                  key={scorecardHtml.substring(0, 50)} // Force re-render when content changes
-                  ref={scorecardIframeRef}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    height: '100px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    margin: 0,
-                    padding: 0,
-                    verticalAlign: 'top'
-                  }}
-                  title="Tennis Scorecard"
-                />
-              ) : (
-                // <img src={graph} alt="graph" />
-                null
-              )}
+              <iframe
+                src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+                allowFullScreen
+                className="w-full"
+                title="Live Score"
+                style={{ height: "260px", border: "none" }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+              />
+              <div className="bg-black text-white text-xs px-3 py-2">
+                If score doesn&apos;t load,{" "}
+                <a
+                  className="underline"
+                  href={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  open in new tab
+                </a>
+                .
+              </div>
             </>
           )}
         </div>
@@ -996,6 +1000,11 @@ function Fullmarket2() {
         </div>
         <div>
           {/* Match Odds Section */}
+          {!loader && dataSource.length === 0 && (
+            <div className="p-4 text-center text-gray-500 bg-[#1e1e1e] text-white">
+              No markets available for this match. Try again later.
+            </div>
+          )}
           {matchOddsList.length > 0 && (<>
             <div className="bg-[#17934e] h-10 p-2 pl-4 flex items-center gap-2">
             <GrStarOutline className="text-white" />

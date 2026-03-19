@@ -19,7 +19,7 @@ const generatePhone = () => Math.floor(1000000000 + Math.random() * 9000000000);
 
 export const mockSubAdmin = (overrides = {}) => {
   const roles = [
-    'supperadmin',
+    'superadmin',
     'admin',
     'white',
     'super',
@@ -99,8 +99,8 @@ export const mockSubAdmin = (overrides = {}) => {
 };
 
 export const mockSubAdminHierarchy = () => {
-  const supperadmin = mockSubAdmin({
-    role: 'supperadmin',
+  const superadmin = mockSubAdmin({
+    role: 'superadmin',
     code: 'SUPER001',
     userName: 'superadmin',
     balance: 1000000,
@@ -114,7 +114,7 @@ export const mockSubAdminHierarchy = () => {
     userName: 'admin1',
     balance: 500000,
     avbalance: 450000,
-    invite: supperadmin.code,
+    invite: superadmin.code,
   });
 
   const master = mockSubAdmin({
@@ -154,13 +154,13 @@ export const mockSubAdminHierarchy = () => {
   });
 
   return {
-    supperadmin,
+    superadmin,
     admin,
     master,
     agent,
     user1,
     user2,
-    allUsers: [supperadmin, admin, master, agent, user1, user2],
+    allUsers: [superadmin, admin, master, agent, user1, user2],
   };
 };
 

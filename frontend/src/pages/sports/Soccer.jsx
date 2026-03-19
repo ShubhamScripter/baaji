@@ -18,16 +18,17 @@ function Soccer({ activeTab }) {
   
   const [openIndexes, setOpenIndexes] = useState([0]);
 
-  const sourceMatches = activeTab === "InPlay" ? soccerInplayData : soccerData;
+  const sourceMatches = (activeTab === "InPlay" ? soccerInplayData : soccerData) ?? [];
 
-  // Filter matches based on activeTab
-  const filteredMatches = sourceMatches.filter(match => {
+  // Filter matches based on activeTab (support both iplay and inplay from API)
+  const filteredMatches = (Array.isArray(sourceMatches) ? sourceMatches : []).filter(match => {
     const matchDate = new Date(match.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const isInplay = match.inplay === true || match.iplay === true;
 
     if (activeTab === "InPlay") {
-      return match.inplay === true;
+      return isInplay;
     } 
     else if (activeTab === "Today") {
       return matchDate.toDateString() === today.toDateString();
@@ -40,12 +41,11 @@ function Soccer({ activeTab }) {
     return true;
   });
 
-  // Group matches by title
+  // Group matches by title (fallback "Soccer" if API doesn't send title)
   const groupedMatches = filteredMatches.reduce((acc, match) => {
-    if (!acc[match.title]) {
-      acc[match.title] = [];
-    }
-    acc[match.title].push(match);
+    const title = match.title || 'Soccer';
+    if (!acc[title]) acc[title] = [];
+    acc[title].push(match);
     return acc;
   }, {});
 
@@ -118,7 +118,7 @@ function Soccer({ activeTab }) {
                       <span className="bg-yellow-200 text-black rounded font-bold px-1 text-xs">
                         {match.date}
                       </span>
-                      {match.inplay && (
+                      {(match.inplay || match.iplay) && (
                         <span className="bg-[#52bf05] text-white rounded font-bold px-1 h-fit text-xs">
                           Inplay
                         </span>

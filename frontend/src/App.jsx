@@ -43,12 +43,13 @@ function App() {
       {/* Foreground content */}
       <div className="w-full max-w-[480px] flex flex-col min-h-screen shadow-lg bg-[#f0f8ff] relative">
         <Toaster position="top-right" reverseOrder={false} />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-        </Routes>
         <main className='flex-grow overflow-y-auto no-scrollbar'>
           <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* Sports & main public pages */}
             <Route path="/" element={<Home />} />
             <Route path="/leagues" element={<Leagues />} />
             <Route path="/casino" element={<Casino />} />
@@ -69,6 +70,8 @@ function App() {
 
             <Route path="/sports/fullmarket1" element={<Fullmarket1 />} />
             <Route path="/fullmarket" element={<Fullmarket />} />
+
+            {/* Protected routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/mybets" element={<Bets />} />
             
@@ -86,8 +89,8 @@ function App() {
             <Route path='/user/p2p-transfer' element={<P2pTransfer />} />
             <Route path='/user/p2p-transfer-log' element={<P2pTransferLog />} />
             <Route path='/user/setting' element={<Settings />} />
-            <Route path='/user/change-password' element={<ChangePassword />} />
-          </Route>
+              <Route path='/user/change-password' element={<ChangePassword />} />
+            </Route>
           </Routes>
         </main>
         <Footer activeTab={activeTab} setActiveTab={setActiveTab} />

@@ -7,6 +7,7 @@ import {
   getPasswordHistoryByUserId,
   getUserById,
   loginUser,
+  registerSelf,
   updateQuickStakes,
   updateTheme,
   user_logout,
@@ -16,6 +17,7 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 // router.post("/register", registerUser);
+router.post('/user/register', registerSelf);
 router.post('/user/login', loginUser);
 
 router.get('/get/user-details', authMiddleware, getUserById);
