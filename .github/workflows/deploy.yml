@@ -1,0 +1,120 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, staging]
+
+jobs:
+  deploy-staging:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Admin (Staging)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SERVER_IP }}
+          username: ${{ secrets.STAGING_SERVER_USER }}
+          key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /www/wwwroot/staging.agaura444
+            git fetch origin
+            git reset --hard origin/staging
+            git clean -fd
+            cd dashboard
+            echo "VITE_IS_LOCAL=false" > .env
+            npm install --legacy-peer-deps && npm run build
+            cd ../backend
+            npm install --legacy-peer-deps
+            pm2 restart staging-agaura444 || pm2 start server.js --name staging-agaura444
+
+      - name: Deploy Client (Staging)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SERVER_IP }}
+          username: ${{ secrets.STAGING_SERVER_USER }}
+          key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /www/wwwroot/staging.aura444
+            git fetch origin
+            git reset --hard origin/staging
+            git clean -fd
+            cd client
+            echo "VITE_IS_LOCAL=false" > .env
+            npm install --legacy-peer-deps && npm run build
+            cd ../backend
+            npm install --legacy-peer-deps
+            pm2 restart staging-aura444 || pm2 start server.js --name staging-aura444
+
+      - name: Notify Staging
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            MSG="STAGING deployed successfully"
+          else
+            MSG=" STAGING deployment FAILED"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MSG
+          Commit: ${{ github.sha }}
+          By: ${{ github.actor }}
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Admin (Production)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /www/wwwroot/ag.aura3333
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
+            cd dashboard
+            echo "VITE_IS_LOCAL=false" > .env
+            npm install --legacy-peer-deps && npm run build
+            cd ../backend
+            npm install --legacy-peer-deps
+            pm2 restart agaura444 || pm2 start server.js --name agaura444
+
+      - name: Deploy Client (Production)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /www/wwwroot/aura3333
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
+            cd client
+            echo "VITE_IS_LOCAL=false" > .env
+            npm install --legacy-peer-deps && npm run build
+            cd ../backend
+            npm install --legacy-peer-deps
+            pm2 restart aura444 || pm2 start server.js --name aura444
+
+      - name: Notify Production
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            MSG=" PRODUCTION deployed successfully"
+          else
+            MSG=" PRODUCTION deployment FAILED"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MSG
+          Commit: ${{ github.sha }}
+          By: ${{ github.actor }}
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
