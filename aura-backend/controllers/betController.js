@@ -1205,14 +1205,16 @@ export const placeFancyBet = async (req, res) => {
             headers: {
               'Content-Type': 'application/json',
             },
+            timeout: 8000,
           }
         );
       } catch (err) {
         console.error('Error fetching market_id:', err);
-        return res.status(502).json({
-          message: 'Could not fetch external market_id',
-          error: err.message,
-        });
+        // return res.status(502).json({
+        //   message: 'Could not fetch external market_id',
+        //   error: err.message,
+        // });
+
       }
     }
 
