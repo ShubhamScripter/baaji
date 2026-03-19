@@ -316,7 +316,7 @@ import { GiHamburgerMenu } from "react-icons/gi";
 import { BiRefresh } from "react-icons/bi";
 import { motion } from "motion/react";
 import { useSelector, useDispatch } from "react-redux";
-import { getUser } from "../../features/auth/authSlice";
+import { getUser, setLiveBalance } from "../../features/auth/authSlice";
 import Navbar from "./Navbar";
 import Header from "./Header";
 import Logo from "../../assets/logo.png";
@@ -360,7 +360,17 @@ function HeaderLogin() {
     // Register listener and keep socket alive
     const unsubscribe = wsClient.subscribe((data) => {
       if (data?.type === "balance_update") {
-        handleRefresh();
+        if (data?.userId && user?._id && String(data.userId) !== String(user._id)) {
+          return;
+        }
+        console.log("balance update received in header login", data);
+        if (typeof data?.newBalance !== "undefined") {
+          dispatch(setLiveBalance(data.newBalance));
+        }
+        // Keep UI instant via WS; sync from API shortly after.
+        setTimeout(() => {
+          handleRefresh();
+        }, 400);
       }
     });
 

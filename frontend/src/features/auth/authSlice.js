@@ -254,6 +254,16 @@ const authSlice = createSlice({
       state.isSuccess = false;
       state.message = "";
     },
+    setLiveBalance: (state, action) => {
+      const nextBalance = Number(action.payload);
+      if (!Number.isFinite(nextBalance)) return;
+      if (!state.user) return;
+      state.user = {
+        ...state.user,
+        avbalance: nextBalance,
+      };
+      localStorage.setItem("user", JSON.stringify(state.user));
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -332,5 +342,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { reset } = authSlice.actions;
+export const { reset, setLiveBalance } = authSlice.actions;
 export default authSlice.reducer;

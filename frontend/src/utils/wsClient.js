@@ -5,6 +5,7 @@ let refCount = 0;
 let closeTimer = null;
 let pendingSends = [];
 const listeners = new Set();
+let lastRegisterObj = null;
 
 const ensureSocket = () => {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
@@ -14,6 +15,14 @@ const ensureSocket = () => {
   socket = new WebSocket(host);
 
   socket.onopen = () => {
+    // Re-send last register on reconnect so backend can target this user
+    if (lastRegisterObj) {
+      try {
+        socket.send(JSON.stringify(lastRegisterObj));
+      } catch {
+        // ignore
+      }
+    }
     // Flush queued sends
     if (pendingSends.length) {
       const queue = pendingSends;
@@ -88,6 +97,9 @@ export const wsClient = {
   },
 
   send(obj) {
+    if (obj?.type === 'register') {
+      lastRegisterObj = obj;
+    }
     const payload = JSON.stringify(obj);
     const s = ensureSocket();
     if (s.readyState === WebSocket.OPEN) {

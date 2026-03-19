@@ -1055,47 +1055,50 @@ console.log("data source",dataSource)
     }
   }, [successMessage, errorMessage, dispatch]);
 
-  // const fancy1List = bettingData?.filter((item) => item.mname === "fancy1");
-
-  // const fancy1Data =
-  //   Array.isArray(fancy1List) && fancy1List.length > 0 && fancy1List[0].section
-  //     ? fancy1List[0].section.map((sec) => ({
-  //       team: sec.nat,
-  //       sid: sec.sid,
-  //       odds: sec.odds,
-  //       max: sec.max,
-  //       min: sec.min,
-  //       mname: fancy1List[0].mname, // ✅ Access from first item
-  //       status: fancy1List[0].status, // ✅ Access from first item
-  //     }))
-  //     : [];
-  //   // console.log("fancy1 data",fancy1Data) oddeven
-  const fancy1List = Array.isArray(dataSource)
-  ? dataSource.filter((item) => item.mtype === "INNINGS_RUNS")
-  : [];
-console.log("fancy1List........",fancy1List)
-const fancy1Data = fancy1List.flatMap((market) =>
-  (market.runners || []).map((runner) => ({
-    marketid: market.id,
-    event_id: market.groupById,
-    team: runner.name,
-    sid: runner.id,
-    odds: [
-      ...(runner.back?.[0]
-        ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].line }]
-        : []),
-      ...(runner.lay?.[0]
-        ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].line }]
-        : []),
-    ],
-    min: market.minLiabilityPerBet ?? market.min ?? null,
-    max: market.maxLiabilityPerBet ?? market.max ?? null,
-    status: market.status ?? runner.status,
-    statusLabel: market.statusLabel ?? runner.statusLabel,
-  }))
-);
-console.log("fancy1 data.....",fancy1Data)
-
+  
+  console.log("bettingData............",bettingData)
+  const fancy1List = bettingData?.filter((item) => item.mname === "Normal");
+console.log("fancy1List............",fancy1List)
+ console.log("fancy2List............",fancy1List?.[0]?.section)
+  const fancy1Data =
+    Array.isArray(fancy1List) && fancy1List.length > 0 && fancy1List[0].section
+      ? fancy1List?.[0].section.map((sec) => ({
+        team: sec.nat,
+        sid: sec.sid,
+        odds: sec.odds,
+        max: sec.max,
+        min: sec.min,
+        mname: fancy1List[0].mname, // ✅ Access from first item
+        status: sec.gstatus, // ✅ Access from first item
+      }))
+      : [];
+    // console.log("fancy1 data",fancy1Data) oddeven
+//   const fancy1List = Array.isArray(dataSource)
+//   ? dataSource.filter((item) => item.mtype === "INNINGS_RUNS")
+//   : [];
+// console.log("fancy1List........",fancy1List)
+// const fancy1Data = fancy1List.flatMap((market) =>
+//   (market.runners || []).map((runner) => ({
+//     marketid: market.id,
+//     event_id: market.groupById,
+//     team: runner.name,
+//     sid: runner.id,
+//     odds: [
+//       ...(runner.back?.[0]
+//         ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].line }]
+//         : []),
+//       ...(runner.lay?.[0]
+//         ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].line }]
+//         : []),
+//     ],
+//     min: market.minLiabilityPerBet ?? market.min ?? null,
+//     max: market.maxLiabilityPerBet ?? market.max ?? null,
+//     status: market.status ?? runner.status,
+//     statusLabel: market.statusLabel ?? runner.statusLabel,
+//   }))
+// );
+// console.log("fancy1 data.....",fancy1Data)
+console.log("fancy1 data............",fancy1Data);
   // const oddevenList = bettingData?.filter((item) => item.mname === "oddeven");
   // console.log("odd even list ",oddevenList)
   // const oddevenData =
@@ -1420,31 +1423,55 @@ const fetchScorecard = async (isInitial = false) => {
           <span className='font-semibold'>{team2}</span>
         </div>
         <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
-          {/* Live stream section disabled to avoid external errors */}
-          {false ? (
-            null
+          {isLive ? (
+            <>
+              <iframe
+                src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
+                title="Watch Live"
+                className="w-full"
+                style={{ height: "50vh", border: "none" }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+              />
+              <div className="bg-black text-white text-xs px-3 py-2">
+                If video doesn&apos;t load,{" "}
+                <a
+                  className="underline"
+                  href={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  open in new tab
+                </a>
+                .
+              </div>
+            </>
           ) : (
             <>
-              {scorecardHtml ? (
-                <iframe
-                  key={scorecardHtml.substring(0, 50)} // Force re-render when content changes
-                  ref={scorecardIframeRef}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    height: '200px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    margin: 0,
-                    padding: 0,
-                    verticalAlign: 'top'
-                  }}
-                  title="Cricket Scorecard"
-                />
-              ) : (
-                // <img src={graph} alt="graph" />
-                null
-              )}
+              <iframe
+                src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+                allowFullScreen
+                className="w-full"
+                title="Live Score"
+                style={{ height: "260px", border: "none" }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+              />
+              <div className="bg-black text-white text-xs px-3 py-2">
+                If score doesn&apos;t load,{" "}
+                <a
+                  className="underline"
+                  href={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  open in new tab
+                </a>
+                .
+              </div>
             </>
           )}
         </div>

@@ -13,27 +13,30 @@ export const fetchSoccerData = async (req, res) => {
     const t1Data = response.data.data.t1 || [];
     const t2Data = response.data.data.t2 || [];
 
-    const combinedData = [...t1Data, ...t2Data].map((match) => ({
-      id: match.gmid,
-      match: match.ename,
-      date: match.stime,
-      iplay: match.iplay,
-      channels: match.f ? ['F'] : [],
-      odds: match.section.reduce((acc, section, index) => {
-        const homeOdds = section.odds[0]?.odds || '0';
-        const awayOdds = section.odds[1]?.odds || '0';
+    const combinedData = [...t1Data, ...t2Data]
+      .map((match) => ({
+        id: match.gmid,
+        match: match.ename,
+        date: match.stime,
+        inplay: !!match.iplay,
+        // League/competition name for frontend grouping
+        cname: match.cname,
+        title: match.cname || match.comp || 'Soccer',
+        channels: match.f ? ['F'] : [],
+        odds: (match.section || []).reduce((acc, section, index) => {
+          const homeOdds = section.odds?.[0]?.odds || '0';
+          const awayOdds = section.odds?.[1]?.odds || '0';
+          acc.push({ home: homeOdds, away: awayOdds });
+          if (index < (match.section?.length || 0) - 1) {
+            acc.push({ home: '0', away: '0' });
+          }
+          return acc;
+        }, []),
+      }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        acc.push({ home: homeOdds, away: awayOdds });
-
-        if (index < match.section.length - 1) {
-          acc.push({ home: '0', away: '0' });
-        }
-
-        return acc;
-      }, []),
-    }));
-
-    res.status(200).json({ success: true, data: combinedData });
+    const inplayOnly = combinedData.filter((m) => m.inplay === true);
+    res.status(200).json({ success: true, data: combinedData, matches: inplayOnly });
   } catch (error) {
     console.error('Error fetching soccer data:', error.message);
     res

@@ -18,6 +18,8 @@ dotenv.config();
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 
+let wssInstance = null;
+
 // Global State
 // clients -> Array holding all connected clients each with
 // --> ws (the websocket connection)
@@ -50,6 +52,8 @@ const lastSentValues = {
   exposure: new Map(),
   openBets: new Map(),
 };
+// If user is offline at callback time, queue latest balance update and deliver on next register.
+const pendingUserMessages = new Map();
 
 // helper: subscribe to the Live score
 const subscribeToLiveScore = (gameid, apitype) => {
@@ -324,6 +328,8 @@ const pollCasinoBettingData = async () => {
 export const setupWebSocket = (server) => {
   // Create a WebSocket server (wss) that listens for client connections
   const wss = new WebSocketServer({ server });
+  // Make sure sendToUser() can verify that WebSocket is initialized
+  wssInstance = wss;
 
   // Every time someone connects we:
   wss.on('connection', (ws) => {
@@ -349,6 +355,12 @@ export const setupWebSocket = (server) => {
         if (data.type === 'register' && data.userId) {
           client.userId = data.userId;
           console.log(`[WS] Registered userId: ${data.userId}`);
+          const pending = pendingUserMessages.get(data.userId);
+          if (pending && client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify(pending));
+            pendingUserMessages.delete(data.userId);
+            console.log(`[WS] Delivered queued message to userId: ${data.userId}`);
+          }
         }
 
         if (data.type === 'subscribe' && data.gameid) {
@@ -356,6 +368,10 @@ export const setupWebSocket = (server) => {
           client.apitype = data.apitype || 'cricket';
           client.roundId = data.roundId || null;
           client.userId = data.userId || null;
+
+          console.log(
+            `[WS] Subscribe: gameid=${client.gameid} apitype=${client.apitype} userId=${client.userId}`
+          );
 
          
           //  ESSENTIAL: Clear only betting/results cache, keep deduplication cache
@@ -413,7 +429,7 @@ export const sendBalanceUpdates = (userId, newBalance) => {
 
   //Send only if the Value is Changed
   clients.forEach((client) => {
-    if (client.ws.readyState === 1) {
+    if (client.userId === userId && client.ws.readyState === 1) {
       client.ws.send(
         JSON.stringify({
           type: 'balance_update',
@@ -445,7 +461,7 @@ export const sendExposureUpdates = (userId, newExposure) => {
 
   //Send only if the Value is Changed
   clients.forEach((client) => {
-    if (client.ws.readyState === 1) {
+    if (client.userId === userId && client.ws.readyState === 1) {
       client.ws.send(
         JSON.stringify({
           type: 'exposure_update',
@@ -506,3 +522,42 @@ export const sendCashoutUpdates = (userId, cashoutData) => {
 // Server polls API every 3 seconds for each unique subscription
 // If data changed, sends update to subscribed clients
 // If client disconnects, they're removed from the list
+
+
+// import axios from "axios";
+
+
+export const sendToUser = (userName, payload) => {
+
+  console.log("payload in sendToUser", payload);
+  // NOTE: We match against either `client.userId` (preferred) or `client.userName`
+  // because some callers pass userId and some pass userName.
+  if (!Array.isArray(clients) || clients.length === 0) {
+    if (payload?.userId) {
+      pendingUserMessages.set(payload.userId, payload);
+      console.log(`[WEBSOCKET] Queued message for offline userId=${payload.userId}`);
+    }
+    return console.warn(' [WEBSOCKET] No connected clients to send');
+  }
+
+  const matchingCount = clients.filter((client) => {
+    if (client?.ws?.readyState !== 1) return false;
+    return client.userId === userName || client.userName === userName;
+  }).length;
+  console.log(
+    `[WEBSOCKET] sendToUser target=${userName} matchingClients=${matchingCount}`
+  );
+  if (matchingCount === 0 && payload?.userId) {
+    pendingUserMessages.set(payload.userId, payload);
+    console.log(`[WEBSOCKET] Queued message for offline userId=${payload.userId}`);
+  }
+
+  clients.forEach((client) => {
+    if (
+      client.ws.readyState === 1 &&
+      (client.userId === userName || client.userName === userName)
+    ) {
+      client.ws.send(JSON.stringify(payload));
+    }
+  });
+};
