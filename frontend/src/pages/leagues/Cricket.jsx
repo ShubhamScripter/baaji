@@ -1,28 +1,34 @@
-import React from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { MdArrowCircleUp } from "react-icons/md";
 import { MdArrowForwardIos } from "react-icons/md";
-import { IoArrowUndo } from "react-icons/io5";
-import { MdArrowBackIosNew } from "react-icons/md";
 import { useNavigate } from 'react-router-dom';
-const all=[
-  "Test Matches",
-  "Womens International Twenty20 Matches",
-  "Afghanistan T20 Wakhan National Cup",
-  "One Day Internationals",
-  "T20 Blast",
-  "Irish Inter Provincial T20 Trophy"
-]
-const matchesData = {
-  "Test Matches": ["India vs Australia", "England vs South Africa"],
-  "Womens International Twenty20 Matches": ["India Women vs Australia Women"],
-  "Afghanistan T20 Wakhan National Cup": ["Team A vs Team B"],
-  "One Day Internationals": ["Pakistan vs Sri Lanka"],
-  "T20 Blast": ["Team X vs Team Y"],
-  "Irish Inter Provincial T20 Trophy": ["Leinster vs Munster"]
-};
+import { useDispatch, useSelector } from "react-redux";
+import { fetchCricketData } from "../../features/sports/cricketSlice";
+
 function Cricket({ selected, setSelected }) {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const matches = useSelector((s) => s.cricket?.matches || []);
+
+  useEffect(() => {
+    dispatch(fetchCricketData());
+  }, [dispatch]);
+
+  const leagues = useMemo(() => {
+    const map = new Map();
+    for (const m of Array.isArray(matches) ? matches : []) {
+      const key = (m?.title || m?.cname || "Unknown League").toString().trim() || "Unknown League";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(m);
+    }
+    return [...map.entries()]
+      .map(([title, items]) => ({ title, matches: items }))
+      .sort((a, b) => b.matches.length - a.matches.length);
+  }, [matches]);
+
         if (selected) {
+          const selectedLeague = leagues.find((l) => l.title === selected);
+          const list = selectedLeague?.matches || [];
         return (
           <div>
             {/* <div className='bg-[#333] w-full h-16 flex items-center gap-2 p-2'>
@@ -41,17 +47,27 @@ function Cricket({ selected, setSelected }) {
             </div>
             <div className='bg-[#f0f8ff]'>
             <div className='p-2 flex flex-col gap-1'>
-                {matchesData[selected]?.map((items,idx)=>(
-                    <div key={idx} className='flex flex-col bg-white p-4 rounded-xl'
-                    onClick={()=> navigate('/fullmarket')}
+                {list.length === 0 ? (
+                  <div className="bg-white p-4 rounded-lg text-center">No matches</div>
+                ) : (
+                  list.map((m, idx) => (
+                    <div
+                      key={`${m.id}_${idx}`}
+                      className="flex flex-col bg-white p-4 rounded-xl"
+                      onClick={() =>
+                        navigate(`/sports/fullmarket/${encodeURIComponent(m.match)}/${m.id}`)
+                      }
                     >
-                    <span className='text-xs bg-[#e2eaef] w-fit pl-2 pr-2'>02/07/2025 3:30 PM &nbsp; Matched96160.33</span>
-                    <div className='flex justify-between items-center'>
-                    <span className='text-xl'>{items}</span>
-                    <MdArrowForwardIos/>
+                      <span className="text-xs bg-[#e2eaef] w-fit pl-2 pr-2">
+                        {m.date || "-"} &nbsp; Matched{m.matched ?? 0}
+                      </span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xl">{m.match}</span>
+                        <MdArrowForwardIos />
+                      </div>
                     </div>
-                    </div> 
-                ))}
+                  ))
+                )}
             </div>
         </div>
           </div>
@@ -62,16 +78,23 @@ function Cricket({ selected, setSelected }) {
         <div className='bg-[#f0f8ff] min-h-[80vh]'>
             <div className='p-4 flex flex-col gap-1'>
                 <h3 className='text-xl font-semibold mb-2'>Popular</h3>
-                {all.map((items,idx)=>(
-                    <div key={idx} className='flex items-center justify-between bg-white p-4 rounded-xl'
-                    onClick={() => setSelected(items)}
-                    >
-                    <div className='flex justify-center items-center gap-2'>
-                    <MdArrowCircleUp className='text-2xl'/>
-                    <span className='md:text-xl'>{items}</span>
+                {leagues.map((l) => (
+                  <div
+                    key={l.title}
+                    className="flex items-center justify-between bg-white p-4 rounded-xl"
+                    onClick={() => setSelected(l.title)}
+                  >
+                    <div className="flex justify-center items-center gap-2">
+                      <MdArrowCircleUp className="text-2xl" />
+                      <span className="md:text-xl">{l.title}</span>
                     </div>
-                    <MdArrowForwardIos/>
-                    </div> 
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-[#e2eaef] px-2 py-1 rounded">
+                        {l.matches.length}
+                      </span>
+                      <MdArrowForwardIos />
+                    </div>
+                  </div>
                 ))}
             </div>
         </div>
