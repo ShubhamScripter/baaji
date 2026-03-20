@@ -1,266 +1,11 @@
-// import axios from "axios";
-// import { encrypt, decrypt } from "../utils/casinoCrypto.js";
-// import SubAdmin from '../models/subAdminModel.js'
-
-// const AGENCY_UID = "31417734-0bde-4dd7-8691-0d5a5a"; // Token
-// const SERVER_URL = "https://bulkapi.in";
-
-// // 🎮 1. Start Casino Game
-// export const startCasinoGame = async (req, res) => {
-//   try {
-//     const { userName, game_uid, credit_amount } = req.body;
-
-//     //  Find the subadmin/user before launching game
-//     const subAdmin = await SubAdmin.findOne({ userName });
-//     if (!subAdmin) {
-//       return res.status(404).json({ success: false, message: "User not found" });
-//     }
-
-//     const timestamp = Date.now();
-
-//     const payload = {
-//       agency_uid: AGENCY_UID,
-//       member_account: userName,
-//       game_uid,
-//       credit_amount,
-//       currency_code: "BDT",
-//       language: "en",
-//       home_url: "https://yourfrontend.com",
-//       callback_url: "https://yourbackend.com/api/casino/callback",
-//       platform: "web",
-//       timestamp
-//     };
-
-//     const encryptedPayload = encrypt(payload);
-
-//     // Send request to Casino API
-//     const response = await axios.post(`${SERVER_URL}/launch_game`, {
-//       agency_uid: AGENCY_UID,
-//       timestamp,
-//       payload: encryptedPayload
-//     });
-//     console.log("🔹 Casino API response:", response.data);
-//     if (response.data.code === 0) {
-//       const gameUrl = response.data.payload.game_launch_url;
-//       return res.json({
-//         success: true,
-//         gameUrl,
-//         message: "Game launched successfully"
-//       });
-//     } else {
-//       return res.status(400).json({
-//         success: false,
-//         message: response.data.msg || "Casino game launch failed"
-//       });
-//     }
-//   } catch (error) {
-//     console.error("❌ Casino launch error:", error.message);
-//     res.status(500).json({ success: false, message: "Internal server error" });
-//   }
-// };
-
-// //  2. Callback (Bet/Win Results)
-// export const casinoCallback = async (req, res) => {
-//   try {
-//     const { payload } = req.body;
-//     const data = decrypt(payload);
-
-//     const { member_account, bet_amount, win_amount } = data;
-
-//     const subAdmin = await SubAdmin.findOne({ userName: member_account });
-//     if (!subAdmin) {
-//       console.warn("⚠️ Callback: user not found:", member_account);
-//       return res.json({ code: 1, msg: "User not found" });
-//     }
-
-//     const oldBalance = subAdmin.balance || 0;
-//     const newBalance = oldBalance - Number(bet_amount) + Number(win_amount);
-
-//     subAdmin.balance = newBalance;
-//     await subAdmin.save();
-
-//     console.log(
-//       `🎰 ${member_account}: Bet ${bet_amount} BDT, Won ${win_amount} BDT → New Balance = ${newBalance}`
-//     );
-
-//     // Respond to Casino API
-//     return res.json({ code: 0, msg: "success" });
-//   } catch (error) {
-//     console.error("❌ Casino callback error:", error.message);
-//     return res.json({ code: 1, msg: "callback error" });
-//   }
-// };
-
-
-// import axios from "axios";
-// import { encrypt, decrypt } from "../utils/casinoCrypto.js";
-// import SubAdmin from '../models/subAdminModel.js'
-
-// // 🔧 Get these from environment variables or database
-// const AGENCY_UID = process.env.CASINO_AGENCY_UID || "31417734-0bde-4dd7-8691-0d5a5a";
-// const SERVER_URL = process.env.CASINO_SERVER_URL || "https://bulkapi.in";
-
-// // 🎮 1. Start Casino Game
-// export const startCasinoGame = async (req, res) => {
-//   try {
-//     const { userName, game_uid, credit_amount } = req.body;
-
-//     // ✅ Validate required fields
-//     if (!userName || !game_uid || !credit_amount) {
-//       return res.status(400).json({ 
-//         success: false, 
-//         message: "Missing required fields: userName, game_uid, credit_amount" 
-//       });
-//     }
-
-//     // ✅ Find the subadmin/user before launching game
-//     const subAdmin = await SubAdmin.findOne({ userName });
-//     if (!subAdmin) {
-//       return res.status(404).json({ success: false, message: "User not found" });
-//     }
-
-//     // ✅ Check if user has sufficient balance
-//     if (subAdmin.balance < credit_amount) {
-//       return res.status(400).json({ 
-//         success: false, 
-//         message: "Insufficient balance" 
-//       });
-//     }
-
-//     const timestamp = Date.now();
-
-//     const payload = {
-//       agency_uid: AGENCY_UID,
-//       member_account: userName,
-//       game_uid,
-//       credit_amount,
-//       currency_code: "BDT",
-//       language: "en",
-//       home_url: "http://localhost:5173", // 🔧 Update to your actual frontend URL
-//       callback_url: "http://localhost:5000/api/casino/callback", // 🔧 Update to your actual backend URL
-//       platform: "web",
-//       timestamp
-//     };
-
-//     console.log("🔹 Sending payload to casino API:", payload);
-
-//     const encryptedPayload = encrypt(payload);
-
-//     // Send request to Casino API
-//     const response = await axios.post(`${SERVER_URL}/launch_game`, {
-//       agency_uid: AGENCY_UID,
-//       timestamp,
-//       payload: encryptedPayload
-//     }, {
-//       headers: {
-//         'Content-Type': 'application/json',
-//         'Accept': 'application/json'
-//       },
-//       timeout: 30000 // 30 second timeout
-//     });
-
-//     console.log("🔹 Casino API response:", response.data);
-    
-//     // ✅ Better error handling
-//     if (response.data && response.data.code === 0) {
-//       const gameUrl = response.data.payload?.game_launch_url;
-//       if (gameUrl) {
-//         return res.json({
-//           success: true,
-//           gameUrl,
-//           message: "Game launched successfully"
-//         });
-//       } else {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Game URL not received from casino API"
-//         });
-//       }
-//     } else {
-//       return res.status(400).json({
-//         success: false,
-//         message: response.data?.msg || "Casino game launch failed",
-//         errorCode: response.data?.code
-//       });
-//     }
-//   } catch (error) {
-//     console.error("❌ Casino launch error:", error.message);
-    
-//     // ✅ More specific error handling
-//     if (error.response) {
-//       console.error("❌ API Response Error:", error.response.data);
-//       return res.status(500).json({ 
-//         success: false, 
-//         message: "Casino API error: " + (error.response.data?.msg || error.response.statusText),
-//         details: error.response.data
-//       });
-//     } else if (error.request) {
-//       console.error("❌ No response received:", error.request);
-//       return res.status(500).json({ 
-//         success: false, 
-//         message: "No response from casino API" 
-//       });
-//     } else {
-//       return res.status(500).json({ 
-//         success: false, 
-//         message: "Internal server error: " + error.message 
-//       });
-//     }
-//   }
-// };
-
-// // 💸 2. Callback (Bet/Win Results)
-// export const casinoCallback = async (req, res) => {
-//   try {
-//     console.log("🔹 Casino callback received:", req.body);
-    
-//     const { payload } = req.body;
-//     if (!payload) {
-//       return res.json({ code: 1, msg: "No payload received" });
-//     }
-
-//     const data = decrypt(payload);
-//     console.log("🔹 Decrypted callback data:", data);
-
-//     const { member_account, bet_amount, win_amount } = data;
-
-//     if (!member_account) {
-//       return res.json({ code: 1, msg: "Member account not found in callback" });
-//     }
-
-//     const subAdmin = await SubAdmin.findOne({ userName: member_account });
-//     if (!subAdmin) {
-//       console.warn("⚠️ Callback: user not found:", member_account);
-//       return res.json({ code: 1, msg: "User not found" });
-//     }
-
-//     const oldBalance = subAdmin.balance || 0;
-//     const newBalance = oldBalance - Number(bet_amount || 0) + Number(win_amount || 0);
-
-//     subAdmin.balance = newBalance;
-//     await subAdmin.save();
-
-//     console.log(
-//       `🎰 ${member_account}: Bet ${bet_amount} BDT, Won ${win_amount} BDT → New Balance = ${newBalance}`
-//     );
-
-//     // Respond to Casino API
-//     return res.json({ code: 0, msg: "success" });
-//   } catch (error) {
-//     console.error("❌ Casino callback error:", error.message);
-//     return res.json({ code: 1, msg: "callback error: " + error.message });
-//   }
-// };
-
-
 import axios from "axios";
 import { encrypt, decrypt } from "../utils/casinoCrypto.js";
 import SubAdmin from '../models/subAdminModel.js'
-import { sendToUser } from '../socket/bettingSocket.js';
+import { sendToUser, sendUserRefresh } from '../socket/bettingSocket.js';
 // 🔧 Casino API Configuration
-const API_TOKEN = "31417734-0bde-4dd7-8691-0d5a5a";
-const API_SECRET = "722cb6dbd6fbfa00b82fed07451f81";
-const SERVER_URL = "https://bulkapi.in";
+const API_TOKEN = "6a2ec97d6cc84fe4958886facafe43";
+const API_SECRET = "294509c9d1ed37a64b1b697efcd4fd";
+const SERVER_URL = "https://bulkapi.org";
 
 // 🎮 1. Start Casino Game
 export const startCasinoGame = async (req, res) => {
@@ -318,6 +63,8 @@ export const startCasinoGame = async (req, res) => {
     // 🔧 Encrypt the payload using the secret key
     const message = JSON.stringify(requestData);
     const encryptedPayload = encrypt(message); // This uses your existing encrypt function
+console.log("message is:", message);
+    console.log("Encrypted payload is:", encryptedPayload);
 
     // 🔧 Build URL with parameters (like PHP code)
     const gameUrl = `${SERVER_URL}/launch_game?` + 
@@ -346,96 +93,87 @@ export const startCasinoGame = async (req, res) => {
   }
 };
 
-// 💸 2. Callback (Bet/Win Results)
-// export const casinoCallback = async (req, res) => {
-//   try {
-//     console.log("🔹 Casino callback received:", req.body);
-    
-//     const { payload } = req.body;
-//     if (!payload) {
-//       return res.json({ code: 1, msg: "No payload received" });
-//     }
 
-//     const data = decrypt(payload);
-//     console.log("🔹 Decrypted callback data:", data);
+import CasinoBetHistory from '../models/casinoBetHistory.model.js';
 
-//     const { member_account, bet_amount, win_amount } = data;
-
-//     if (!member_account) {
-//       return res.json({ code: 1, msg: "Member account not found in callback" });
-//     }
-
-//     const subAdmin = await SubAdmin.findOne({ userName: member_account });
-//     if (!subAdmin) {
-//       console.warn("⚠️ Callback: user not found:", member_account);
-//       return res.json({ code: 1, msg: "User not found" });
-//     }
-
-//     const oldBalance = subAdmin.balance || 0;
-//     const newBalance = oldBalance - Number(bet_amount || 0) + Number(win_amount || 0);
-
-//     subAdmin.balance = newBalance;
-//     await subAdmin.save();
-
-//     console.log(
-//       `🎰 ${member_account}: Bet ${bet_amount} BDT, Won ${win_amount} BDT → New Balance = ${newBalance}`
-//     );
-
-//     // Respond to Casino API
-//     return res.json({ code: 0, msg: "success" });
-//   } catch (error) {
-//     console.error("❌ Casino callback error:", error.message);
-//     return res.json({ code: 1, msg: "callback error: " + error.message });
-//   }
-// };
 
 // export const casinoCallback = async (req, res) => {
 //   try {
-//     // Log useful info while debugging
 //     console.log('callback headers:', req.headers);
 //     console.log('callback raw body:', req.body);
 
-//     //this is response of console.log(req.body);
-//     // callback raw body: {
-//     //   mobile: 'user12',
-//     //   bet_amount: '25',
-//     //   win_amount: '0',
-//     //   game_uid: '2e31c310ad2491d3c6021f6063dc9b74',
-//     //   game_round: '16576070176050724324',
-//     //   token: '31417734-0bde-4dd7-8691-0d5a5a',
-//     //   wallet_before: '1065.8',
-//     //   wallet_after: '1040.8',
-//     //   change: '-25',
-//     //   timestamp: '2025-10-30 12:13:31'
+//     // If provider sends encrypted payload JSON
+//     // if (req.body && req.body.payload) {
+//     //   const data = decrypt(req.body.payload);
+//     //   console.log('decrypted payload:', data);
+      
+//     //   const { member_account, bet_amount, win_amount, game_uid, game_round, timestamp, currency_code, wallet_before, wallet_after, change } = data || {};
+//     //   if (!member_account) return res.json({ code: 1, msg: 'Member account not found in payload' });
+
+//     //   const subAdmin = await SubAdmin.findOne({ userName: member_account });
+//     //   if (!subAdmin) return res.json({ code: 1, msg: 'User not found' });
+
+//     //   const oldBalance = subAdmin.avbalance || 0;
+//     //   const bet = Number(bet_amount || 0);
+//     //   const win = Number(win_amount || 0);
+//     //   const newBalance = oldBalance - bet + win;
+
+//     //   subAdmin.avbalance = newBalance;
+//     //   await subAdmin.save();
+
+//     //   // Check if record already exists
+//     //   const existingBet = await CasinoBetHistory.findOne({ 
+//     //     userName: member_account, 
+//     //     game_round: game_round || 'n/a' 
+//     //   });
+
+//     //   // Only save/update if:
+//     //   // 1. Record doesn't exist AND (bet > 0 OR win > 0)
+//     //   // 2. Record exists AND win > 0 (win settlement update)
+//     //   // Skip zero-value status callbacks that overwrite real bets
+//     //   const shouldSave = !existingBet 
+//     //     ? (bet > 0 || win > 0) 
+//     //     : (win > 0 || (existingBet.bet_amount === 0 && bet > 0));
+
+//     //   if (shouldSave) {
+//     //     await CasinoBetHistory.findOneAndUpdate(
+//     //       { userName: member_account, game_round: game_round || 'n/a' },
+//     //       {
+//     //         $setOnInsert: {
+//     //           userId: subAdmin._id.toString(),
+//     //           userName: member_account,
+//     //           game_uid: game_uid || 'n/a',
+//     //           game_round: game_round || 'n/a',
+//     //         },
+//     //         $set: {
+//     //           bet_amount: bet,
+//     //           win_amount: win,
+//     //           change: Number(change || (wallet_after ? Number(wallet_after) - Number(wallet_before || oldBalance) : (win - bet))),
+//     //           wallet_before: Number(wallet_before || oldBalance),
+//     //           wallet_after: Number(wallet_after || newBalance),
+//     //           currency_code: currency_code || 'BDT',
+//     //           token: data.token,
+//     //           provider_timestamp: timestamp ? new Date(timestamp) : new Date(),
+//     //           providerRaw: data,
+//     //           processedAt: new Date(),
+//     //         }
+//     //       },
+//     //       { upsert: true, new: true }
+//     //     );
+//     //   } else {
+//     //     console.log(`⏭️ Skipping zero-value callback for game_round: ${game_round}`);
+//     //   }
+
+//     //   return res.json({ code: 0, msg: 'success' });
 //     // }
 
-
-
-//     // If provider sends encrypted payload JSON (your original flow)
-//     if (req.body && req.body.payload) {
-//       const data = decrypt(req.body.payload);
-//       console.log('decrypted payload:', data);
-//       // example fields: member_account, bet_amount, win_amount
-//       const { member_account, bet_amount, win_amount } = data || {};
-//       if (!member_account) return res.json({ code: 1, msg: 'Member account not found in payload' });
-
-//       const subAdmin = await SubAdmin.findOne({ userName: member_account });
-//       if (!subAdmin) return res.json({ code: 1, msg: 'User not found' });
-
-//       const oldBalance = subAdmin.balance || 0;
-//       const newBalance = oldBalance - Number(bet_amount || 0) + Number(win_amount || 0);
-//       subAdmin.balance = newBalance;
-//       await subAdmin.save();
-
-//       return res.json({ code: 0, msg: 'success' });
-//     }
-
-//     // Otherwise accept form-encoded fields (like PHP sample)
+//     // Handle plain form-encoded fields (your current callback format)
 //     const {
 //       mobile,
 //       bet_amount,
 //       win_amount,
 //       game_uid,
+//       game_name,
 //       game_round,
 //       token,
 //       wallet_before,
@@ -445,21 +183,80 @@ export const startCasinoGame = async (req, res) => {
 //       currency_code,
 //     } = req.body || {};
 
-//     // Validate required bits; adjust to your model/logic
 //     if (!mobile) return res.json({ code: 1, msg: 'No mobile provided' });
 
+//     // ✅ Find SubAdmin by userName (mobile maps to userName)
 //     const subAdmin = await SubAdmin.findOne({ userName: mobile });
 //     if (!subAdmin) return res.json({ code: 1, msg: 'User not found' });
 
 //     const bet = Number(bet_amount || 0);
 //     const win = Number(win_amount || 0);
-//     const oldBalance = subAdmin.balance || 0;
+//     const oldBalance = subAdmin.avbalance || 0;
+//     console.log("oldBalance", oldBalance);
+//     console.log("bet", bet);
+//     console.log("win", win);
 //     const newBalance = oldBalance - bet + win;
-
-//     subAdmin.balance = newBalance;
+//     console.log("newBalance", newBalance);
+//     subAdmin.avbalance = newBalance;
 //     await subAdmin.save();
+    
+//     // Send balance update via WebSocket
+//     // sendToUser(subAdmin.userName, {
+//     //   type: "balance_update",
+//     //   userName: subAdmin.userName,
+//     //   newBalance: subAdmin.avbalance
+//     // });
+    
+   
+//     // ✅ Check if record already exists
+//     const existingBet = await CasinoBetHistory.findOne({ 
+//       userName: mobile, 
+//       game_round: game_round || 'n/a' 
+//     });
 
-//     // TODO: optionally persist game history similar to PHP code (game_uid/game_round/change etc.)
+//     // ✅ Only save/update if:
+//     // 1. Record doesn't exist AND (bet > 0 OR win > 0) - create new bet record
+//     // 2. Record exists AND win > 0 - update with win settlement
+//     // 3. Record exists but has bet_amount = 0 AND bet > 0 - update with actual bet
+//     // Skip zero-value status callbacks that would overwrite real bets
+//     const shouldSave = !existingBet 
+//       ? (bet > 0 || win > 0) 
+//       : (win > 0 || (existingBet.bet_amount === 0 && bet > 0));
+
+//     if (shouldSave) {
+//        // Send user refresh request to trigger full user data refresh in frontend
+//       sendUserRefresh(subAdmin._id.toString());
+//       // ✅ Save/Update casino bet history with userId
+//       await CasinoBetHistory.findOneAndUpdate(
+//         { userName: mobile, game_round: game_round || 'n/a' },
+//         {
+//           $setOnInsert: {
+//             userId: subAdmin._id.toString(), // Store SubAdmin._id as userId
+//             userName: mobile, // mobile = userName in SubAdmin
+//             game_uid: game_uid || 'n/a',
+//             game_round: game_round || 'n/a',
+//             game_name: game_name || 'n/a',
+//           },
+//           $set: {
+//             bet_amount: bet,
+//             win_amount: win,
+//             change: Number(change || (wallet_after ? Number(wallet_after) - Number(wallet_before || oldBalance) : (win - bet))),
+//             wallet_before: Number(wallet_before || oldBalance),
+//             wallet_after: Number(wallet_after || newBalance),
+//             currency_code: currency_code || 'BDT',
+//             token: token,
+//             provider_timestamp: timestamp ? new Date(timestamp) : new Date(),
+//             providerRaw: req.body, // Store full raw payload
+//             processedAt: new Date(),
+//           }
+//         },
+//         { upsert: true, new: true } // Prevent duplicates on retry
+//       );
+      
+//       console.log(`🎰 Casino bet saved: ${mobile} - Bet: ${bet}, Win: ${win}, New Balance: ${newBalance}`);
+//     } else {
+//       console.log(`⏭️ Skipping zero-value callback for ${mobile} - game_round: ${game_round} (existing bet_amount: ${existingBet?.bet_amount})`);
+//     }
 
 //     return res.json({ code: 0, msg: 'success' });
 //   } catch (error) {
@@ -468,165 +265,279 @@ export const startCasinoGame = async (req, res) => {
 //   }
 // };
 
+// export const casinoCallback = async (req, res) => {
+//   try {
+//     console.log("🎰 Casino callback:", req.body);
 
-import CasinoBetHistory from '../models/casinoBetHistory.model.js';
+//     const {
+//       mobile,
+//       bet_amount,
+//       win_amount,
+//       game_uid,
+//       game_name,
+//       game_round,
+//       wallet_before,
+//       wallet_after,
+//       change,
+//       token,
+//       timestamp,
+//       currency_code
+//     } = req.body || {};
 
+//     if (!mobile || !game_round) {
+//       return res.json({ code: 1, msg: "Invalid payload" });
+//     }
+
+//     const bet = Number(bet_amount || 0);
+//     const win = Number(win_amount || 0);
+
+//     const subAdmin = await SubAdmin.findOne({ userName: mobile });
+//     if (!subAdmin) {
+//       return res.json({ code: 1, msg: "User not found" });
+//     }
+
+//     // 🔒 Find existing bet record
+//     let betRecord = await CasinoBetHistory.findOne({
+//       userName: mobile,
+//       game_round
+//     });
+
+//     /* -------------------------------------------------
+//        1️⃣ BET CALLBACK (bet placed)
+//     --------------------------------------------------*/
+//     if (bet > 0 && !betRecord) {
+//       // ✅ Deduct balance ONCE
+//       subAdmin.avbalance = Number(wallet_after);
+//       await subAdmin.save();
+
+//       betRecord = await CasinoBetHistory.create({
+//         userId: subAdmin._id.toString(),
+//         userName: mobile,
+//         game_uid,
+//         game_name,
+//         game_round,
+//         bet_amount: bet,
+//         win_amount: 0,
+//         change: Number(change || -bet),
+//         wallet_before: Number(wallet_before),
+//         wallet_after: Number(wallet_after),
+//         currency_code: currency_code || "BDT",
+//         token,
+//         provider_timestamp: timestamp ? new Date(timestamp) : new Date(),
+//         providerRaw: req.body,
+//         processedAt: new Date()
+//       });
+
+//       sendUserRefresh(subAdmin._id.toString());
+
+//       console.log(`✅ BET stored | ${mobile} | Bet: ${bet}`);
+//     }
+
+//     /* -------------------------------------------------
+//        2️⃣ WIN CALLBACK (round settled)
+//     --------------------------------------------------*/
+//     else if (win > 0 && betRecord && betRecord.win_amount === 0) {
+//       // ✅ Credit balance ONCE
+//       subAdmin.avbalance = Number(wallet_after);
+//       await subAdmin.save();
+
+//       betRecord.win_amount = win;
+//       betRecord.change = Number(change || win);
+//       betRecord.wallet_after = Number(wallet_after);
+//       betRecord.providerRaw = req.body;
+//       betRecord.processedAt = new Date();
+
+//       await betRecord.save();
+
+//       sendUserRefresh(subAdmin._id.toString());
+
+//       console.log(`🏆 WIN stored | ${mobile} | Win: ${win}`);
+//     }
+
+//     /* -------------------------------------------------
+//        3️⃣ IGNORE DUPLICATE / STATUS CALLBACKS
+//     --------------------------------------------------*/
+//     else {
+//       console.log(
+//         `⏭️ Ignored callback | ${mobile} | bet=${bet}, win=${win}, round=${game_round}`
+//       );
+//     }
+
+//     return res.json({ code: 0, msg: "success" });
+
+//   } catch (err) {
+//     console.error("❌ Casino callback error:", err);
+//     return res.json({ code: 1, msg: err.message });
+//   }
+// };
 
 export const casinoCallback = async (req, res) => {
   try {
-    console.log('callback headers:', req.headers);
-    console.log('callback raw body:', req.body);
+    console.log("🎰 Casino callback:", req.body);
 
-    // If provider sends encrypted payload JSON
-    if (req.body && req.body.payload) {
-      const data = decrypt(req.body.payload);
-      console.log('decrypted payload:', data);
-      
-      const { member_account, bet_amount, win_amount, game_uid, game_round, timestamp, currency_code, wallet_before, wallet_after, change } = data || {};
-      if (!member_account) return res.json({ code: 1, msg: 'Member account not found in payload' });
-
-      const subAdmin = await SubAdmin.findOne({ userName: member_account });
-      if (!subAdmin) return res.json({ code: 1, msg: 'User not found' });
-
-      const oldBalance = subAdmin.avbalance || 0;
-      const bet = Number(bet_amount || 0);
-      const win = Number(win_amount || 0);
-      const newBalance = oldBalance - bet + win;
-
-      subAdmin.avbalance = newBalance;
-      await subAdmin.save();
-
-      // Check if record already exists
-      const existingBet = await CasinoBetHistory.findOne({ 
-        userName: member_account, 
-        game_round: game_round || 'n/a' 
-      });
-
-      // Only save/update if:
-      // 1. Record doesn't exist AND (bet > 0 OR win > 0)
-      // 2. Record exists AND win > 0 (win settlement update)
-      // Skip zero-value status callbacks that overwrite real bets
-      const shouldSave = !existingBet 
-        ? (bet > 0 || win > 0) 
-        : (win > 0 || (existingBet.bet_amount === 0 && bet > 0));
-
-      if (shouldSave) {
-        await CasinoBetHistory.findOneAndUpdate(
-          { userName: member_account, game_round: game_round || 'n/a' },
-          {
-            $setOnInsert: {
-              userId: subAdmin._id.toString(),
-              userName: member_account,
-              game_uid: game_uid || 'n/a',
-              game_round: game_round || 'n/a',
-            },
-            $set: {
-              bet_amount: bet,
-              win_amount: win,
-              change: Number(change || (wallet_after ? Number(wallet_after) - Number(wallet_before || oldBalance) : (win - bet))),
-              wallet_before: Number(wallet_before || oldBalance),
-              wallet_after: Number(wallet_after || newBalance),
-              currency_code: currency_code || 'BDT',
-              token: data.token,
-              provider_timestamp: timestamp ? new Date(timestamp) : new Date(),
-              providerRaw: data,
-              processedAt: new Date(),
-            }
-          },
-          { upsert: true, new: true }
-        );
-      } else {
-        console.log(`⏭️ Skipping zero-value callback for game_round: ${game_round}`);
-      }
-
-      return res.json({ code: 0, msg: 'success' });
-    }
-
-    // Handle plain form-encoded fields (your current callback format)
     const {
       mobile,
       bet_amount,
       win_amount,
       game_uid,
+      game_name,
       game_round,
-      token,
       wallet_before,
       wallet_after,
       change,
+      token,
       timestamp,
-      currency_code,
+      currency_code
     } = req.body || {};
 
-    if (!mobile) return res.json({ code: 1, msg: 'No mobile provided' });
-
-    // ✅ Find SubAdmin by userName (mobile maps to userName)
-    const subAdmin = await SubAdmin.findOne({ userName: mobile });
-    if (!subAdmin) return res.json({ code: 1, msg: 'User not found' });
+    if (!mobile || !game_round) {
+      return res.json({ code: 1, msg: "Invalid payload" });
+    }
 
     const bet = Number(bet_amount || 0);
     const win = Number(win_amount || 0);
-    const oldBalance = subAdmin.avbalance || 0;
-    const newBalance = oldBalance - bet + win;
 
-    subAdmin.avbalance = newBalance;
-    await subAdmin.save();
-    sendToUser(subAdmin._id.toString(), {
-      type: "balance_update",
-      userId: subAdmin._id.toString(),
-      userName: subAdmin.userName,
-      newBalance: subAdmin.avbalance,
-    });
-    // ✅ Check if record already exists
-    const existingBet = await CasinoBetHistory.findOne({ 
-      userName: mobile, 
-      game_round: game_round || 'n/a' 
+    // 🔒 Find existing bet record first
+    let betRecord = await CasinoBetHistory.findOne({
+      userName: mobile,
+      game_round
     });
 
-    // ✅ Only save/update if:
-    // 1. Record doesn't exist AND (bet > 0 OR win > 0) - create new bet record
-    // 2. Record exists AND win > 0 - update with win settlement
-    // 3. Record exists but has bet_amount = 0 AND bet > 0 - update with actual bet
-    // Skip zero-value status callbacks that would overwrite real bets
-    const shouldSave = !existingBet 
-      ? (bet > 0 || win > 0) 
-      : (win > 0 || (existingBet.bet_amount === 0 && bet > 0));
+    console.log("my betRecord is:", betRecord);
 
-    if (shouldSave) {
-      // ✅ Save/Update casino bet history with userId
-      await CasinoBetHistory.findOneAndUpdate(
-        { userName: mobile, game_round: game_round || 'n/a' },
-        {
-          $setOnInsert: {
-            userId: subAdmin._id.toString(), // Store SubAdmin._id as userId
-            userName: mobile, // mobile = userName in SubAdmin
-            game_uid: game_uid || 'n/a',
-            game_round: game_round || 'n/a',
-          },
-          $set: {
-            bet_amount: bet,
-            win_amount: win,
-            change: Number(change || (wallet_after ? Number(wallet_after) - Number(wallet_before || oldBalance) : (win - bet))),
-            wallet_before: Number(wallet_before || oldBalance),
-            wallet_after: Number(wallet_after || newBalance),
-            currency_code: currency_code || 'BDT',
-            token: token,
-            provider_timestamp: timestamp ? new Date(timestamp) : new Date(),
-            providerRaw: req.body, // Store full raw payload
-            processedAt: new Date(),
-          }
-        },
-        { upsert: true, new: true } // Prevent duplicates on retry
-      );
+    /* -------------------------------------------------
+       1️⃣ BET CALLBACK (bet placed)
+    --------------------------------------------------*/
+    if (bet > 0 && !betRecord) {
+      // ✅ Fetch fresh user to get current balance
+      const currentUser = await SubAdmin.findOne({ userName: mobile });
+      if (!currentUser) {
+        return res.json({ code: 1, msg: "User not found" });
+      }
+
+      // ✅ Calculate balance change: wallet_after - wallet_before
+      const balanceChange = Number(wallet_after) - Number(wallet_before || currentUser.avbalance);
       
-      console.log(`🎰 Casino bet saved: ${mobile} - Bet: ${bet}, Win: ${win}, New Balance: ${newBalance}`);
-    } else {
-      console.log(`⏭️ Skipping zero-value callback for ${mobile} - game_round: ${game_round} (existing bet_amount: ${existingBet?.bet_amount})`);
+      // ✅ Update BOTH balance and avbalance to maintain consistency
+      const updatedUser = await SubAdmin.findOneAndUpdate(
+        { userName: mobile },
+        { 
+          $inc: { 
+            balance: balanceChange,  // Update balance
+            avbalance: balanceChange  // Update avbalance by same amount
+          } 
+        },
+        { 
+          new: true,
+          runValidators: true
+        }
+      );
+
+      if (!updatedUser) {
+        return res.json({ code: 1, msg: "User not found" });
+      }
+
+      console.log(`💰 Balance updated | ${mobile} | Balance: ${updatedUser.balance} | AvBalance: ${updatedUser.avbalance} | Change: ${balanceChange}`);
+
+      betRecord = await CasinoBetHistory.create({
+        userId: updatedUser._id.toString(),
+        userName: mobile,
+        game_uid,
+        game_name,
+        game_round,
+        bet_amount: bet,
+        win_amount: 0,
+        change: Number(change || -bet),
+        wallet_before: Number(wallet_before || currentUser.avbalance),
+        wallet_after: Number(updatedUser.avbalance),
+        currency_code: currency_code || "BDT",
+        token,
+        provider_timestamp: timestamp ? new Date(timestamp) : new Date(),
+        providerRaw: req.body,
+        processedAt: new Date()
+      });
+
+      // Push realtime balance update to avoid waiting for user_refresh_needed roundtrip.
+      sendToUser(updatedUser._id.toString(), {
+        type: "balance_update",
+        userId: updatedUser._id.toString(),
+        userName: mobile,
+        newBalance: updatedUser.avbalance,
+      });
+      sendUserRefresh(updatedUser._id.toString());
+
+      console.log(`✅ BET stored | ${mobile} | Bet: ${bet}`);
     }
 
-    return res.json({ code: 0, msg: 'success' });
-  } catch (error) {
-    console.error('Casino callback error:', error);
-    return res.json({ code: 1, msg: `callback error: ${error.message}` });
+    /* -------------------------------------------------
+       2️⃣ WIN CALLBACK (round settled)
+    --------------------------------------------------*/
+    else if (win > 0 && betRecord && betRecord.win_amount === 0) {
+      // ✅ Fetch fresh user to get current balance
+      const currentUser = await SubAdmin.findOne({ userName: mobile });
+      if (!currentUser) {
+        return res.json({ code: 1, msg: "User not found" });
+      }
+
+      // ✅ Calculate balance change: wallet_after - current avbalance
+      const balanceChange = Number(wallet_after) - Number(currentUser.avbalance);
+      
+      // ✅ Update BOTH balance and avbalance to maintain consistency
+      const updatedUser = await SubAdmin.findOneAndUpdate(
+        { userName: mobile },
+        { 
+          $inc: { 
+            balance: balanceChange,  // Update balance
+            avbalance: balanceChange  // Update avbalance by same amount
+          } 
+        },
+        { 
+          new: true,
+          runValidators: true
+        }
+      );
+
+      if (!updatedUser) {
+        return res.json({ code: 1, msg: "User not found" });
+      }
+
+      console.log(`💰 Balance updated | ${mobile} | Balance: ${updatedUser.balance} | AvBalance: ${updatedUser.avbalance} | Win: ${win} | Change: ${balanceChange}`);
+
+      betRecord.win_amount = win;
+      betRecord.change = Number(change || win);
+      betRecord.wallet_after = Number(updatedUser.avbalance);
+      betRecord.providerRaw = req.body;
+      betRecord.processedAt = new Date();
+
+      await betRecord.save();
+
+      // Push realtime balance update to avoid waiting for user_refresh_needed roundtrip.
+      sendToUser(updatedUser._id.toString(), {
+        type: "balance_update",
+        userId: updatedUser._id.toString(),
+        userName: mobile,
+        newBalance: updatedUser.avbalance,
+      });
+      sendUserRefresh(updatedUser._id.toString());
+
+      console.log(`🏆 WIN stored | ${mobile} | Win: ${win}`);
+    }
+
+    /* -------------------------------------------------
+       3️⃣ IGNORE DUPLICATE / STATUS CALLBACKS
+    --------------------------------------------------*/
+    else {
+      console.log(
+        `⏭️ Ignored callback | ${mobile} | bet=${bet}, win=${win}, round=${game_round}`
+      );
+    }
+
+    return res.json({ code: 0, msg: "success" });
+
+  } catch (err) {
+    console.error("❌ Casino callback error:", err);
+    console.error("❌ Error stack:", err.stack);
+    return res.json({ code: 1, msg: err.message });
   }
 };
 
@@ -780,74 +691,178 @@ export const getCasinoBetHistory = async (req, res) => {
 };
 
 // Get All Casino Bet History with Downline Tree 
+// export const getAllDownlineCasinoBetHistory = async (req, res) => {
+//   try {
+//     // Allow id from auth middleware, request body, or query params
+//     let id = req.id || req.body.id || req.query.id;
+    
+//     if (!id) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: "User ID is required" 
+//       });
+//     }
+    
+//     const { startDate, endDate, page, limit } = req.query;
+
+//     // Find the admin
+//     const admin = await SubAdmin.findById(id);
+//     if (!admin) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: "Admin not found" 
+//       });
+//     }
+
+//     // Get all downline users (recursive) - same pattern as getAllDownlineBets
+//     let queue = [admin.code];
+//     let userIds = [];
+
+//     while (queue.length > 0) {
+//       const currentCode = queue.shift();
+
+//       const downlineUsers = await SubAdmin.find({ invite: currentCode });
+
+//       for (const user of downlineUsers) {
+//         // Collect all users (unlike sports betting which only collects role === "user")
+//         userIds.push(user._id.toString());
+        
+//         // Add agent/admin code to queue to go deeper
+//         queue.push(user.code);
+//       }
+//     }
+
+//     // ✅ If no downlines found, include only the user itself
+//     if (userIds.length === 0) {
+//       userIds = [admin._id.toString()];
+//     }
+
+//     // Build filter
+//     const filter = { userId: { $in: userIds } };
+
+//     // Add date filter if provided
+//     if (startDate && endDate) {
+//       const start = new Date(startDate);
+//       const end = new Date(endDate);
+//       end.setDate(end.getDate() + 1);
+//       filter.createdAt = { $gte: start, $lte: end };
+//     }
+
+//     // Pagination
+//     const pageNum = parseInt(page) || 1;
+//     const limitNum = parseInt(limit) || 10;
+
+//     // Fetch casino bet history for all collected users
+//     const betData = await CasinoBetHistory.find(filter)
+//       .sort({ createdAt: -1 })
+//       .skip((pageNum - 1) * limitNum)
+//       .limit(limitNum);
+
+//     const totalCount = await CasinoBetHistory.countDocuments(filter);
+
+//     return res.status(200).json({
+//       success: true,
+//       totalUsers: userIds.length,
+//       totalBets: betData.length,
+//       data: betData,
+//       pagination: {
+//         total: totalCount,
+//         page: pageNum,
+//         limit: limitNum,
+//         pages: Math.ceil(totalCount / limitNum)
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error("Error fetching casino bet history:", error);
+//     return res.status(500).json({ 
+//       success: false, 
+//       message: "Server error", 
+//       error: error.message 
+//     });
+//   }
+// };
+
 export const getAllDownlineCasinoBetHistory = async (req, res) => {
   try {
-    // Allow id from auth middleware, request body, or query params
-    let id = req.id || req.body.id || req.query.id;
-    
+    const id = req.id || req.body.id || req.query.id;
+
     if (!id) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "User ID is required" 
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
       });
     }
-    
-    const { startDate, endDate, page, limit } = req.query;
 
-    // Find the admin
-    const admin = await SubAdmin.findById(id);
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+
+    // 1️⃣ Get admin
+    const admin = await SubAdmin.findById(id).select("_id code");
     if (!admin) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Admin not found" 
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found",
       });
     }
 
-    // Get all downline users (recursive) - same pattern as getAllDownlineBets
-    let queue = [admin.code];
-    let userIds = [];
+    // 2️⃣ Get all downline userIds using graphLookup (🔥 FAST)
+    const hierarchy = await SubAdmin.aggregate([
+      { $match: { _id: admin._id } },
+      {
+        $graphLookup: {
+          from: "subadmins",
+          startWith: "$code",
+          connectFromField: "code",
+          connectToField: "invite",
+          as: "downlines",
+          depthField: "level",
+        },
+      },
+      {
+        $project: {
+          userIds: {
+            $concatArrays: [
+              [{ $toString: "$_id" }],
+              {
+                $map: {
+                  input: "$downlines",
+                  as: "d",
+                  in: { $toString: "$$d._id" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ]);
 
-    while (queue.length > 0) {
-      const currentCode = queue.shift();
+    const userIds = hierarchy[0]?.userIds || [admin._id.toString()];
 
-      const downlineUsers = await SubAdmin.find({ invite: currentCode });
-
-      for (const user of downlineUsers) {
-        // Collect all users (unlike sports betting which only collects role === "user")
-        userIds.push(user._id.toString());
-        
-        // Add agent/admin code to queue to go deeper
-        queue.push(user.code);
-      }
-    }
-
-    // ✅ If no downlines found, include only the user itself
-    if (userIds.length === 0) {
-      userIds = [admin._id.toString()];
-    }
-
-    // Build filter
+    // 3️⃣ Build filter
     const filter = { userId: { $in: userIds } };
 
-    // Add date filter if provided
     if (startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
       end.setDate(end.getDate() + 1);
+
       filter.createdAt = { $gte: start, $lte: end };
     }
 
-    // Pagination
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    // Fetch casino bet history for all collected users
-    const betData = await CasinoBetHistory.find(filter)
-      .sort({ createdAt: -1 })
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum);
+    // 4️⃣ Fetch data + count in parallel (⚡)
+    const [betData, totalCount] = await Promise.all([
+      CasinoBetHistory.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
 
-    const totalCount = await CasinoBetHistory.countDocuments(filter);
+      CasinoBetHistory.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -858,19 +873,20 @@ export const getAllDownlineCasinoBetHistory = async (req, res) => {
         total: totalCount,
         page: pageNum,
         limit: limitNum,
-        pages: Math.ceil(totalCount / limitNum)
-      }
+        pages: Math.ceil(totalCount / limitNum),
+      },
     });
-
   } catch (error) {
-    console.error("Error fetching casino bet history:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: "Server error", 
-      error: error.message 
+    console.error("Casino bet history error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
     });
   }
 };
+
+
 // Get All Casino Profit/Loss Report 
 
 export const getAllCasinoProfitLoss = async (req, res) => {

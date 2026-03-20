@@ -1,57 +1,8 @@
-// import CryptoJS from "crypto-js";
-
-// // 🔒 Casino API Secret Key
-// const AES_KEY = "722cb6dbd6fbfa00b82fed07451f81"; 
-
-// export function encrypt(payload) {
-//   const text = JSON.stringify(payload);
-//   const key = CryptoJS.enc.Utf8.parse(AES_KEY);
-//   return CryptoJS.AES.encrypt(text, key, {
-//     mode: CryptoJS.mode.ECB,
-//     padding: CryptoJS.pad.Pkcs7
-//   }).toString();
-// }
-
-// export function decrypt(cipherText) {
-//   const key = CryptoJS.enc.Utf8.parse(AES_KEY);
-//   const bytes = CryptoJS.AES.decrypt(cipherText, key, {
-//     mode: CryptoJS.mode.ECB,
-//     padding: CryptoJS.pad.Pkcs7
-//   });
-//   const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-//   return JSON.parse(decrypted);
-// }
-
-
-// import CryptoJS from "crypto-js";
-
-// // 🔒 Casino API Secret Key
-// const AES_KEY = "722cb6dbd6fbfa00b82fed07451f81"; 
-
-// export function encrypt(payload) {
-//   const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
-//   const key = CryptoJS.enc.Utf8.parse(AES_KEY);
-//   return CryptoJS.AES.encrypt(text, key, {
-//     mode: CryptoJS.mode.ECB,
-//     padding: CryptoJS.pad.Pkcs7
-//   }).toString();
-// }
-
-// export function decrypt(cipherText) {
-//   const key = CryptoJS.enc.Utf8.parse(AES_KEY);
-//   const bytes = CryptoJS.AES.decrypt(cipherText, key, {
-//     mode: CryptoJS.mode.ECB,
-//     padding: CryptoJS.pad.Pkcs7
-//   });
-//   const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-//   return JSON.parse(decrypted);
-// }
-
-
 import crypto from "crypto";
 
 // 🔒 Casino API Secret Key
-const AES_KEY = "722cb6dbd6fbfa00b82fed07451f81"; 
+// const AES_KEY = "2802ffe23d91839ff98898732b03d6"; 
+const AES_KEY = "294509c9d1ed37a64b1b697efcd4fd"; 
 
 // 🔧 Create proper 32-byte key for AES-256
 function createKey(keyString) {

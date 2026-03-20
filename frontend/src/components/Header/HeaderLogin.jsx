@@ -333,6 +333,7 @@ function HeaderLogin() {
 
   // 🔁 Refresh handler
   const handleRefresh = async () => {
+    console.log('[WS][HeaderLogin] handleRefresh() called');
     setRefreshing(true);
     try {
       await dispatch(getUser());
@@ -340,6 +341,7 @@ function HeaderLogin() {
       console.error("Failed to refresh user data:", error);
     } finally {
       setRefreshing(false);
+      console.log('[WS][HeaderLogin] handleRefresh() finished');
     }
   };
 
@@ -359,6 +361,7 @@ function HeaderLogin() {
 
     // Register listener and keep socket alive
     const unsubscribe = wsClient.subscribe((data) => {
+      console.log('[WS][HeaderLogin] message received', data);
       if (data?.type === "balance_update") {
         if (data?.userId && user?._id && String(data.userId) !== String(user._id)) {
           return;
@@ -371,6 +374,16 @@ function HeaderLogin() {
         setTimeout(() => {
           handleRefresh();
         }, 400);
+      } else if (data?.type === "user_refresh_needed") {
+        // Backend asks the client to re-fetch user details (balance/exposure/open bets)
+        if (data?.userId && user?._id && String(data.userId) !== String(user._id)) {
+          return;
+        }
+        // Avoid hammering API: small debounce
+        console.log('[WS][HeaderLogin] user_refresh_needed received. Triggering refresh...');
+        setTimeout(() => {
+          handleRefresh();
+        }, 250);
       }
     });
 
