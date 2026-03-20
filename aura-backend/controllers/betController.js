@@ -757,7 +757,7 @@ const placeBet = async (req, res) => {
       //Here we are using the external Api
       try {
         await axios.post(
-          `${RESULT_API_URL}/bet-incoming`,
+          `${RESULT_API_URL}/bet-incoming?key=${API_KEY}`,
           {
             event_id: gameId,
             event_name: eventName,
@@ -1190,7 +1190,7 @@ export const placeFancyBet = async (req, res) => {
 
       try {
         const response = await axios.post(
-          `${RESULT_API_URL}/bet-incoming`,
+          `${RESULT_API_URL}/bet-incoming?key=${API_KEY}`,
           {
             event_id: gameId,
             event_name: eventName,
@@ -1701,7 +1701,7 @@ export const updateResultOfBets = async (req, res) => {
             },
           };
         } else {
-          response = await axios.post(`${RESULT_API_URL}/get-result`, payload, {
+          response = await axios.post(`${RESULT_API_URL}/get-result?key=${API_KEY}`, payload, {
             headers: {
               'Content-Type': 'application/json',
             },
@@ -2849,7 +2849,7 @@ export const updateFancyBetResult = async (req, res) => {
               );
             } else {
               response = await axios.post(
-                `${RESULT_API_URL}/get-result`,
+                `${RESULT_API_URL}/get-result?key=${API_KEY}`,
                 {
                   event_id: Number(bet.gameId),
                   event_name: bet.eventName,
@@ -3159,7 +3159,7 @@ export const updateResultOfBetsHistory = async (req, res) => {
               if (category === 'sports') {
                 const sid = bet.sid; // ensure this is defined
                 response = await axios.post(
-                  `${RESULT_API_URL}/get-result`,
+                  `${RESULT_API_URL}/get-result?key=${API_KEY}`,
                   {
                     event_id: Number(bet.gameId),
                     event_name: bet.eventName,
@@ -3440,7 +3440,7 @@ export const updateFancyBetHistory = async (req, res) => {
             const sid = bet.sid;
 
             const response = await axios.post(
-              `${RESULT_API_URL}/get-result`,
+              `${RESULT_API_URL}/get-result?key=${API_KEY}`,
               {
                 event_id: Number(bet.gameId),
                 event_name: bet.eventName,
