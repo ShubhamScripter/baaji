@@ -88,6 +88,9 @@ import RiskManagement from './pages/riskManagement/RiskManagement';
 import MatchedAll from './pages/riskManagement/MatchedAll';
 
 import Banking from './pages/banking/Banking';
+import ManualDepositAccounts from './pages/banking/ManualDepositAccounts';
+import ManualDepositRequests from './pages/banking/ManualDepositRequests';
+import ManualWithdrawRequests from './pages/banking/ManualWithdrawRequests';
 import BlockMarket from './pages/blockMarket/BlockMarket';
 import Transactionslog from './pages/banking/Transactionslog';
 
@@ -157,6 +160,12 @@ function App() {
             <Route path='/RiskManagement' element={<RiskManagement />} />
             <Route path='/matchedAll' element={<MatchedAll />} />
             <Route path='/banking' element={<Banking />} />
+            <Route path='/manual-deposit-accounts' element={<ManualDepositAccounts />} />
+            <Route
+              path='/manual-deposit-requests'
+              element={<ManualDepositRequests requestType="deposit" />}
+            />
+            <Route path='/manual-withdraw-requests' element={<ManualWithdrawRequests />} />
             <Route path='/block-market' element={<BlockMarket />} />
             <Route path='/general-setting' element={<GeneralSetting />} />
             <Route path='/searchuser' element={<SearchUser />} />

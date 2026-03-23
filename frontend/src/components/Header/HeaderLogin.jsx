@@ -330,6 +330,7 @@ function HeaderLogin() {
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useSelector((state) => state.auth);
   const socketRef = useRef(null);
+  const currentUserId = user?._id || user?.id || null;
 
   // 🔁 Refresh handler
   const handleRefresh = async () => {
@@ -363,7 +364,7 @@ function HeaderLogin() {
     const unsubscribe = wsClient.subscribe((data) => {
       console.log('[WS][HeaderLogin] message received', data);
       if (data?.type === "balance_update") {
-        if (data?.userId && user?._id && String(data.userId) !== String(user._id)) {
+        if (data?.userId && currentUserId && String(data.userId) !== String(currentUserId)) {
           return;
         }
         console.log("balance update received in header login", data);
@@ -376,7 +377,7 @@ function HeaderLogin() {
         }, 400);
       } else if (data?.type === "user_refresh_needed") {
         // Backend asks the client to re-fetch user details (balance/exposure/open bets)
-        if (data?.userId && user?._id && String(data.userId) !== String(user._id)) {
+        if (data?.userId && currentUserId && String(data.userId) !== String(currentUserId)) {
           return;
         }
         // Avoid hammering API: small debounce
@@ -388,8 +389,8 @@ function HeaderLogin() {
     });
 
     // Prefer registering by userId for backend targeting when available
-    if (user?._id) {
-      wsClient.send({ type: "register", userId: user._id });
+    if (currentUserId) {
+      wsClient.send({ type: "register", userId: currentUserId });
     }
 
     socketRef.current = { unsubscribe };
@@ -402,7 +403,7 @@ function HeaderLogin() {
       }
       socketRef.current = null;
     };
-  }, [user]);
+  }, [currentUserId]);
 
   return (
     <>

@@ -943,55 +943,38 @@ function Fullmarket2() {
         </div>
         <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
           {isLive ? (
-            <>
-              <iframe
-                src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
-                title="Watch Live"
-                className="w-full"
-                style={{ height: "50vh", border: "none" }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
-              />
-              <div className="bg-black text-white text-xs px-3 py-2">
-                If video doesn&apos;t load,{" "}
-                <a
-                  className="underline"
-                  href={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=a1bett20252026`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  open in new tab
-                </a>
-                .
-              </div>
-            </>
+            <iframe
+              src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=gk_5db268ed77db3fe9577d7085eb75c2d23467093541ab3ac2`}
+              title="Watch Live"
+              className="w-full rounded-lg"
+              style={{ height: "50vh" }}
+              allowFullScreen
+              loading="lazy"
+              allow="
+                autoplay;
+                encrypted-media;
+                fullscreen;
+                picture-in-picture;
+                accelerometer;
+                gyroscope
+              "
+            />
           ) : (
-            <>
-              <iframe
-                src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
-                allowFullScreen
-                className="w-full"
-                title="Live Score"
-                style={{ height: "260px", border: "none" }}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
-              />
-              <div className="bg-black text-white text-xs px-3 py-2">
-                If score doesn&apos;t load,{" "}
-                <a
-                  className="underline"
-                  href={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  open in new tab
-                </a>
-                .
-              </div>
-            </>
+            <iframe
+              src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+              allowFullScreen
+              className="w-full rounded-lg"
+              title="Live Score"
+              loading="lazy"
+              allow="
+                autoplay;
+                encrypted-media;
+                fullscreen;
+                picture-in-picture;
+                accelerometer;
+                gyroscope
+              "
+            />
           )}
         </div>
         <div className='bg-[#1e1e1e] h-10 p-2 pl-4 pr-4 flex justify-between items-center'>

@@ -3,7 +3,7 @@ import { IoClose } from "react-icons/io5";
 import {
   RiExchangeDollarFill, RiWhatsappFill, RiWallet3Fill, RiFileList3Fill, RiHandCoinFill,
   RiHistoryFill, RiBarChart2Fill, RiEyeLine, RiUser3Fill, RiTeamFill,
-  RiListCheck3, RiSettings3Fill, RiLogoutBoxRFill
+  RiListCheck3, RiSettings3Fill, RiLogoutBoxRFill, RiBankCardFill
 } from 'react-icons/ri';
 import { HiOutlineChevronRight } from "react-icons/hi";
 import { useNavigate } from 'react-router-dom';
@@ -31,6 +31,7 @@ function Navbar({ onClose, open }) {
     { label: "Profit & Loss", icon: <RiBarChart2Fill />, path: "/user/profit-loss" },
     { label: "Active Log", icon: <RiEyeLine />, path: "/user/active-log" },
     { label: "My Profile", icon: <RiUser3Fill />, path: "/user/profile" },
+    { label: "Self Deposit / Withdraw", icon: <RiBankCardFill />, path: "/user/manual-deposit" },
     { label: "P2P Transfer", icon: <RiTeamFill />, path: "/user/p2p-transfer" },
     { label: "P2P Transfer log", icon: <RiListCheck3 />, path: "/user/p2p-transfer-log" },
     { label: "Setting", icon: <RiSettings3Fill />, path: "/user/setting" },
