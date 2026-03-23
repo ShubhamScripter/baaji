@@ -1620,6 +1620,8 @@ export const placeFancyBet = async (req, res) => {
 };
 
 export const updateResultOfBets = async (req, res) => {
+
+  console.log("updateResultOfBets is called........");
   const betTypes = [
     'Toss',
     '1st 6 over',
@@ -2816,7 +2818,7 @@ export const updateFancyBetResult = async (req, res) => {
         gameType,
         betType: { $in: ['fancy', 'sports'] },
       });
-      console.log(`Processing ${gameType} fancy bets:`, bets.length);
+     
 
       if (!bets.length) {
         console.log(`No ${gameType} bets found with status 0`);
@@ -4179,10 +4181,17 @@ export const getTransactionHistoryByUserAndDate = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
-    // Privacy: hide master/upline name from client users
+    // Privacy: hide master/upline name from client users (admin deposits, etc.)
+    // P2P transfers must still show the sender's username — remark starts with "P2P"
     const maskedTransactions = transactions.map((txn) => {
       const masked = { ...txn };
-      if (masked.to === currentUserName && masked.from !== currentUserName) {
+      const isP2P =
+        typeof masked.remark === 'string' && /^P2P/i.test(masked.remark.trim());
+      if (
+        !isP2P &&
+        masked.to === currentUserName &&
+        masked.from !== currentUserName
+      ) {
         masked.from = 'Upline';
       }
       return masked;

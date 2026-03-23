@@ -58,14 +58,15 @@
 // export default ActiveLog
 
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { MdArrowBackIos } from "react-icons/md";
 import HeaderLogin from "../../components/Header/HeaderLogin";
 import ActivelogCard from "../../components/menucomp/ActivelogCard";
-import api from "../../utils/axiosConfig"; 
+import api from "../../utils/axiosConfig";
+import { getUser } from "../../features/auth/authSlice";
 
 function ActiveLog() {
-  // ✅ get current user from Redux auth slice
+  const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
   const [logs, setLogs] = useState([]);
@@ -74,27 +75,46 @@ function ActiveLog() {
 
   useEffect(() => {
     if (!user?._id) {
+      dispatch(getUser());
+    }
+  }, [dispatch, user?._id]);
+
+  useEffect(() => {
+    const uid = user?._id;
+    if (!uid) {
       setLoading(false);
-      setError("User ID not found");
       return;
     }
 
+    let cancelled = false;
     const fetchLoginHistory = async () => {
+      setLoading(true);
+      setError("");
       try {
-        // GET /get/user-login-history/:id
-        const res = await api.get(`/get/user-login-history/${user._id}`);
-        setLogs(res.data?.data || []);
+        const res = await api.get(`/get/user-login-history/${uid}`);
+        if (!cancelled) {
+          setLogs(res.data?.data || []);
+        }
       } catch (err) {
-        const msg =
-          err?.response?.data?.message || err.message || "Failed to fetch logs";
-        setError(msg);
+        if (!cancelled) {
+          const msg =
+            err?.response?.data?.message ||
+            err.message ||
+            "Failed to fetch logs";
+          setError(msg);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchLoginHistory();
-  }, [user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?._id]);
 
   return (
     <div>

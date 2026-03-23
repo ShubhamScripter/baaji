@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 // 🔒 Casino API Secret Key
 // const AES_KEY = "2802ffe23d91839ff98898732b03d6"; 
-const AES_KEY = "294509c9d1ed37a64b1b697efcd4fd"; 
+const AES_KEY = process.env.CASINO_API_SECRET; 
 
 // 🔧 Create proper 32-byte key for AES-256
 function createKey(keyString) {
