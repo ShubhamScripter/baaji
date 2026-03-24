@@ -83,6 +83,10 @@ export const registerSelf = async (req, res) => {
     const displayName = name && name.trim() ? name.trim() : normalizedUserName;
     const phoneNum = phone != null && phone !== '' ? Number(phone) : undefined;
 
+    /** Default wallet & risk limits for self-registered users */
+    const INITIAL_BALANCE = 10000;
+    const INITIAL_EXPOSURE_LIMIT = 10000;
+
     const newUser = new SubAdmin({
       name: displayName,
       email: emailToUse,
@@ -93,9 +97,13 @@ export const registerSelf = async (req, res) => {
       password,
       role: 'user',
       phone: phoneNum,
-      balance: 0,
-      baseBalance: 0,
+      balance: INITIAL_BALANCE,
+      baseBalance: INITIAL_BALANCE,
       totalBalance: 0,
+      avbalance: INITIAL_BALANCE,
+      totalAvbalance: INITIAL_BALANCE,
+      exposureLimit: INITIAL_EXPOSURE_LIMIT,
+      creditReferenceProfitLoss: INITIAL_BALANCE,
       status: 'active',
     });
     await newUser.save();
@@ -423,10 +431,33 @@ export const getPasswordHistoryByUserId = async (req, res) => {
 export const getLoginHistory = async (req, res) => {
   try {
     const { userId } = req.params;
-    const data = await LoginHistory.find({ userId });
+    const selfId = String(req.id);
+
+    // Users may only read their own login activity
+    if (String(userId) !== selfId) {
+      return res.status(403).json({
+        message: 'Access denied',
+        success: false,
+      });
+    }
+
+    const data = await LoginHistory.find({ userId: selfId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const enriched = data.map((row) => {
+      const parts = [row.city, row.region, row.country].filter(
+        (p) => p != null && String(p).trim() !== ''
+      );
+      return {
+        ...row,
+        location: parts.length ? parts.join(', ') : null,
+      };
+    });
+
     res.status(200).json({
       message: 'Login history fetched successfully',
-      data,
+      data: enriched,
       success: true,
     });
   } catch (error) {

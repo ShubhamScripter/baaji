@@ -13,6 +13,7 @@ import downlineRoutes from './routes/admin/downlineRoutes.js';
 import manualResultRoutes from './routes/admin/manualResultRoutes.js';
 import marketAnalizeRoutes from './routes/admin/marketAnalizeRoutes.js';
 import matchSettingsRoutes from './routes/admin/matchSettingsRoute.js';
+import manualDepositRoutes from './routes/manualDepositRoutes.js';
 import subRouteRoutes from './routes/admin/subAdminRoutes.js';
 import betRoute from './routes/betRoute.js';
 import casinoRoutes from './routes/casinoRoutes.js';
@@ -81,10 +82,12 @@ app.use('/api', marketAnalizeRoutes);
 app.use('/api', matchSettingsRoutes);
 app.use('/api', manualResultRoutes);
 app.use('/api', cashoutRoute);
+app.use('/api', manualDepositRoutes);
 app.use("/api/casino", casinoRoutesNew);
 // Static file serving
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 if (APP_TYPE === 'dashboard') {
   app.use(express.static(path.join(__dirname, '../dashboard/dist')));
@@ -92,9 +95,9 @@ if (APP_TYPE === 'dashboard') {
     res.sendFile(path.join(__dirname, '../dashboard/dist/index.html'))
   );
 } else {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
   app.get('*', (req, res) =>
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'))
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
   );
 }
 

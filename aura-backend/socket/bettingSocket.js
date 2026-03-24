@@ -515,6 +515,27 @@ export const sendCashoutUpdates = (userId, cashoutData) => {
   });
 };
 
+
+export const sendUserRefresh = (userId) => {
+  console.log(' [WEBSOCKET] Sending user refresh request for userId:', userId);
+  
+  let sentCount = 0;
+  clients.forEach((client) => {
+    if (client.userId === userId && client.ws.readyState === 1) {
+      client.ws.send(
+        JSON.stringify({
+          type: 'user_refresh_needed',
+          userId: userId,
+        })
+      );
+      sentCount++;
+      console.log(` [WEBSOCKET] Sent refresh request to client ${sentCount}`);
+    }
+  });
+  
+  console.log(` [WEBSOCKET] Sent refresh request to ${sentCount} clients for userId: ${userId}`);
+};
+
 // In short — the flow
 // Client connects → added to clients
 // Client subscribes → sends { type: "subscribe", gameid, apitype }
