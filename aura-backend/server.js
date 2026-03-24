@@ -95,9 +95,9 @@ if (APP_TYPE === 'dashboard') {
     res.sendFile(path.join(__dirname, '../dashboard/dist/index.html'))
   );
 } else {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
   app.get('*', (req, res) =>
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'))
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
   );
 }
 
