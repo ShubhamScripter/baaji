@@ -33,6 +33,7 @@ import {
   userSetting,
   withdrowalAndDeposite,
   getDuplicateIPUsers,
+  getUserCompleteInfo,
 } from '../../controllers/admin/subAdminController.js';
 import { adminAuthMiddleware } from '../../middleware/authMiddleware.js';
 
@@ -89,7 +90,7 @@ router.get(
   adminAuthMiddleware,
   getUserTransactionHistory
 );
-router.get('/get/all-bet-list', adminAuthMiddleware, getAllDownlineBets);
+router.post('/get/all-bet-list', adminAuthMiddleware, getAllDownlineBets);
 router.get('/get/bet-perents/:id', adminAuthMiddleware, parentsDetails);
 router.patch('/gamelock/:id', adminAuthMiddleware, updateGameLock);
 router.get(
@@ -104,5 +105,6 @@ router.post(
 );
 
 router.get("/duplicate-ip-users", adminAuthMiddleware, getDuplicateIPUsers);
+router.post("/sub-admin/profile-data", adminAuthMiddleware, getUserCompleteInfo);
 
 export default router;

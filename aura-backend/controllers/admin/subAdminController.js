@@ -2082,9 +2082,17 @@ export const getUserTransactionHistory = async (req, res) => {
 
 export const getAllDownlineBets = async (req, res) => {
   try {
-    const { id } = req;
+    const { id } = req.body;
     const { startDate, endDate, page, limit, selectedGame, selectedVoid } =
       req.query;
+
+      console.log("id is:",id);
+      console.log("startDate is:",startDate);
+      console.log("endDate is:",endDate);
+      console.log("page is:",page);
+      console.log("limit is:",limit);
+      console.log("selectedGame is:",selectedGame);
+      console.log("selectedVoid is:",selectedVoid);
 
     const admin = await SubAdmin.findById(id);
     if (!admin) {
@@ -2104,6 +2112,8 @@ export const getAllDownlineBets = async (req, res) => {
         status: { $ne: 'delete' },
       });
 
+
+
       for (const user of downlineUsers) {
         if (user.role === 'user') {
           userIds.push(user._id); // Collect user ID for bet query
@@ -2113,6 +2123,9 @@ export const getAllDownlineBets = async (req, res) => {
         }
       }
     }
+
+    console.log("my userIds is:",userIds);
+
 
     const filter = { userId: { $in: userIds } };
 
@@ -2198,6 +2211,7 @@ export const parentsDetails = async (req, res) => {
 
 export const updateGameLock = async (req, res) => {
   try {
+    console.log("updateGameLock is called");
     const { id } = req.params;
     const { game, lock } = req.body;
 
@@ -2217,8 +2231,9 @@ export const updateGameLock = async (req, res) => {
         message: 'User not found',
       });
     }
+console.log("game is:",game);
+    const gameIndex = admin.gamelock.findIndex((g) => g.game.toLowerCase() === game.toLowerCase());
 
-    const gameIndex = admin.gamelock.findIndex((g) => g.game === game);
     if (gameIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -2398,6 +2413,261 @@ export const getDuplicateIPUsers = async (req, res) => {
       success: false, 
       message: "Server error", 
       error: error.message 
+    });
+  }
+};
+
+const getTotalUserDownlineBalance = async (parentCode) => {
+  let total = 0;
+
+  // Find all direct downlines
+  const downlines = await SubAdmin.find({ invite: parentCode, status: { $ne: "delete" } });
+
+
+  for (const d of downlines) {
+    if (d.role === "user") {
+      console.log("users is:",d);
+      total += d.balance || 0; // Add balance if role is "user"
+    }
+
+    // Recurse for this downline's own downlines
+    total += await getTotalUserDownlineBalance(d.code);
+  }
+
+  return total;
+};
+
+
+export const getUserCompleteInfo = async (req, res) => {
+  try {
+    const { userId } = req.body; // User ID from URL parameters
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required"
+      });
+    }
+
+    // Find the user by ID
+    let user = await SubAdmin.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // ✅ UPDATE ADMIN DATA (totalBalance, agentAvbalance, exposure) BEFORE RETURNING
+    await updateAdmin(userId);
+    
+    // ✅ REFETCH USER TO GET UPDATED VALUES
+    user = await SubAdmin.findById(userId);
+
+    // Get parent/upline information
+    const parent = user.invite ? await SubAdmin.findOne({ code: user.invite }) : null;
+    const grandParent = parent && parent.invite ? await SubAdmin.findOne({ code: parent.invite }) : null;
+
+    // Get direct downlines
+    const directDownlines = await SubAdmin.find({ 
+      invite: user.code, 
+      status: { $ne: "delete" } 
+    });
+
+    const totalUserDownlineBalance = await getTotalUserDownlineBalance(user.code);
+
+    // Calculate downline statistics
+    const downlineStats = {
+      totalDirectDownlines: directDownlines.length,
+      activeDownlines: directDownlines.filter(u => u.status === "active").length,
+      inactiveDownlines: directDownlines.filter(u => u.status === "inactive").length,
+      totalDownlineBalance: directDownlines.reduce((sum, u) => sum + (u.balance || 0), 0),
+      totalDownlineAvBalance: directDownlines.reduce((sum, u) => sum + (u.avbalance || 0), 0),
+      totalDownlineExposure: directDownlines.reduce((sum, u) => sum + (u.exposure || 0), 0),
+      totalUserDownlineBalance,
+    };
+
+    //  CALCULATE NEW VALUES
+    const totalDownlineAvBalanceValue = downlineStats.totalDownlineAvBalance;
+    const agentAvbalanceValue = (user.totalAvbalance || 0) + (user.balance || 0);
+
+    // Get user's transaction history (last 10)
+    const recentTransactions = await TransactionHistory.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    // Get user's withdrawal history (last 5)
+    const recentWithdrawals = await WithdrawalHistory.find({ 
+      userName: user.userName 
+    })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Get user's deposit history (last 5)
+    const recentDeposits = await DepositHistory.find({ 
+      userName: user.userName 
+    })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Get credit reference history (last 5)
+    const creditRefHistoryData = await creditRefHistory.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Get password change history (last 5)
+    const passwordChangeHistory = await passwordHistory.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Get login history (last 10)
+    const loginHistory = await LoginHistory.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    // Get betting history if user is a regular user (last 10)
+    let bettingHistory = [];
+    if (user.role === "user") {
+      bettingHistory = await betModel.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(10);
+    }
+
+    // Calculate additional statistics
+    const financialStats = {
+      totalCreditGiven: recentTransactions
+        .filter(t => t.deposite > 0)
+        .reduce((sum, t) => sum + t.deposite, 0),
+      totalCreditTaken: recentTransactions
+        .filter(t => t.withdrawl > 0)
+        .reduce((sum, t) => sum + t.withdrawl, 0),
+      totalBetsPlaced: bettingHistory.length,
+      totalBetAmount: bettingHistory.reduce((sum, bet) => sum + (bet.betAmount || 0), 0),
+    };
+
+    // Prepare hierarchy information
+    const hierarchyInfo = {
+      level: parent ? (grandParent ? 3 : 2) : 1, // Rough level calculation
+      upline: {
+        immediate: parent ? {
+          id: parent._id,
+          name: parent.name,
+          userName: parent.userName,
+          role: parent.role
+        } : null,
+        second: grandParent ? {
+          id: grandParent._id,
+          name: grandParent.name,
+          userName: grandParent.userName,
+          role: grandParent.role
+        } : null
+      }
+    };
+
+    //  PREPARE COMPLETE USER INFORMATION WITH UPDATED VALUES
+    const completeUserInfo = {
+      // Basic user information
+      basicInfo: {
+        id: user._id,
+        name: user.name,
+        userName: user.userName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        account: user.account,
+        code: user.code,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+
+      //  FINANCIAL INFORMATION WITH UPDATED VALUES
+      financialInfo: {
+        balance: user.balance,
+        avbalance: user.avbalance,
+        totalBalance: user.totalBalance, // ✅ Now this will have the updated value from updateAdmin
+        //  CHANGED: totalAvbalance now shows totalDownlineAvBalance
+        totalAvbalance: totalDownlineAvBalanceValue,
+        //  CHANGED: agentAvbalance now shows totalAvbalance + balance
+        agentAvbalance: agentAvbalanceValue,
+        creditReference: user.creditReference,
+        profitLoss: user.profitLoss,
+        exposure: user.exposure,
+        totalExposure: user.totalExposure,
+        exposureLimit: user.exposureLimit,
+        commission: user.commission,
+        rollingCommission: user.rollingCommission,
+        partnership: user.partnership,
+      },
+
+      // Settings and permissions
+      settings: {
+        secret: user.secret,
+        gamelock: user.gamelock,
+        remark: user.remark,
+      },
+
+      // Session information
+      sessionInfo: {
+        sessionToken: user.sessionToken ? "Active" : "Inactive",
+        lastLogin: user.lastLogin,
+        lastDevice: user.lastDevice,
+        lastIP: user.lastIP,
+      },
+
+      // Hierarchy and relationships
+      hierarchyInfo,
+
+      // Downline information
+      downlineInfo: {
+        stats: downlineStats,
+        directDownlines: directDownlines.map(d => ({
+          id: d._id,
+          name: d.name,
+          userName: d.userName,
+          role: d.role,
+          balance: d.balance,
+          avbalance: d.avbalance,
+          status: d.status,
+          createdAt: d.createdAt
+        })),
+        totalUserDownlineBalance,
+      },
+
+      // Transaction histories
+      histories: {
+        recentTransactions,
+        recentWithdrawals,
+        recentDeposits,
+        creditRefHistoryData,
+        passwordChangeHistory,
+        loginHistory,
+        bettingHistory: user.role === "user" ? bettingHistory : null
+      },
+
+      // Statistical information
+      statistics: {
+        ...financialStats,
+        accountAge: Math.floor((new Date() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24)), // Days
+        totalLogins: loginHistory.length,
+        successfulLogins: loginHistory.filter(l => l.status === "Login Successful").length,
+        failedLogins: loginHistory.filter(l => l.status === "Login Failed").length,
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "User complete information retrieved successfully",
+      data: completeUserInfo
+    });
+
+  } catch (error) {
+    console.error("Error fetching user complete information:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching user information",
+      error: error.message
     });
   }
 };
