@@ -33,7 +33,6 @@ const runsWithLock = async (lockName, fn, label) => {
 export const cronJobGame1p = (io) => {
   //SPORTS-Every 1 minute(can be delayed ,no problem)
   cron.schedule('*/1 * * * *', async () => {
-    
     console.log("my cronJobGame1p is called");
     runsWithLock('sports', updateResultOfBets, 'updateResultOfBets');
   });

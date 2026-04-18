@@ -255,7 +255,7 @@
 //       </div>
 //       <div className='bg-[#1e1e1e] h-10 p-2 pl-4 pr-4 flex justify-between items-center'>
 //         <span className='text-white'>Exchange</span>
-//         <span className='text-[#17934e]'>MatchedBDT &nbsp; 14,987,086.26</span>
+//         <span className='text-[#17934e]'>Matched INR &nbsp; 14,987,086.26</span>
 //       </div>
 //       <div>
 //         {/* Match Odds Section */}
@@ -336,13 +336,20 @@ import { getUser } from '../../features/auth/authSlice';
 import { div } from 'motion/react-client';
 import Spinner from '../../components/Spinner';
 import { toast } from 'react-hot-toast';
+import { getSportsMediaUrls, SPORTS_MEDIA_TYPE } from '../../utils/sportsMediaUrls';
 function Fullmarket1() {
   const dispatch = useDispatch();
   const { gameid } = useParams() || {};
   const { match } = useParams() || {};
+  const key = "gk_a42ceaa6f610bab8cc5bd28949f57168a903579db341dba8";
+  const mediaUrls = getSportsMediaUrls({
+    sport: SPORTS_MEDIA_TYPE.FOOTBALL,
+    gameid,
+    key,
+  });
   const [selected, setSelected] = useState("Fancybet");
   const[isFacncyActive, setIsFancyActive] = useState(true);
-  const [isLive, setIsLive] = useState(true);
+  const [isLive, setIsLive] = useState(false);
 
   const [betSlipOpen, setBetSlipOpen] = useState(false);
   const [betSlipData, setBetSlipData] = useState(null);
@@ -362,6 +369,9 @@ function Fullmarket1() {
   const [liveStreamSrc, setLiveStreamSrc] = useState(null);
   const [liveStreamLoading, setLiveStreamLoading] = useState(false);
   const liveStreamIframeRef = useRef(null);
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
+  const [liveStreamUrl, setLiveStreamUrl] = useState("");
+  const [scorecardUrl, setScorecardUrl] = useState("");
   const { loading, successMessage, errorMessage } = useSelector(
     (state) => state.bet
   );
@@ -514,58 +524,41 @@ function Fullmarket1() {
     const fetchScorecard = async (isInitial = false) => {
       if (!gameid || isLive) return;
       try {
-        const url = `https://baajilive.com/api/check/soccer/score-v2?event_id=${gameid}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (isInitial) setScorecardLoading(true);
 
-        const contentType = (response.headers.get('content-type') || '').toLowerCase();
-        let htmlContent = '';
+        const response = await fetch(
+          mediaUrls.scorecardUrl
+        );
+        const json = await response.json();
 
-        if (contentType.includes('application/json') || contentType.includes('text/json')) {
-          // Proper JSON response: { success: true, data: "<html...>" }
-          const json = await response.json();
-          htmlContent = json?.data ?? json?.html ?? (typeof json === 'string' ? json : '');
+        const iframeUrl = json?.iframe?.url;
+        if (json?.success && iframeUrl) {
+          setScorecardUrl(iframeUrl);
+          // Keep compatibility with existing iframe-writer effect
+          setScorecardHtml(
+            `<!doctype html><html><head><meta charset="utf-8" /></head><body style="margin:0;padding:0;"><iframe src="${iframeUrl}" style="border:0;width:100%;height:50vh;" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope" allowfullscreen></iframe></body></html>`
+          );
         } else {
-          // Fallback: raw text (maybe JSON-encoded string or plain HTML)
-          let text = await response.text();
-
-          // If it's a JSON string starting with { try parse and extract .data/.html
-          const looksLikeJsonObject = text.trim().startsWith('{');
-          if (looksLikeJsonObject) {
-            try {
-              const parsed = JSON.parse(text);
-              htmlContent = parsed?.data ?? parsed?.html ?? '';
-            } catch (e) {
-              htmlContent = text;
-            }
-          } else if (text.startsWith('"') && text.endsWith('"')) {
-            // It's a quoted JSON-encoded string: "\"<html>...\""
-            try {
-              htmlContent = JSON.parse(text);
-            } catch (e) {
-              htmlContent = text;
-            }
-          } else {
-            htmlContent = text;
-          }
-        }
-
-        if (htmlContent && htmlContent.trim().length > 0) {
-          setScorecardHtml(htmlContent);
-        } else {
-          throw new Error('Empty response from scorecard API');
+          throw new Error(json?.message || "Failed to fetch live score");
         }
       } catch (error) {
         console.error('Error fetching scorecard:', error);
-        if (isInitial) setScorecardHtml(null);
+        if (isInitial) {
+          setScorecardHtml(null);
+          setScorecardUrl("");
+        }
+      } finally {
+        if (isInitial) setScorecardLoading(false);
       }
     };
 
     if (!isLive && gameid) {
       fetchScorecard(true);
-      intervalId = setInterval(() => fetchScorecard(false), 3000);
+      // Don't auto-refresh the iframe; it causes blinking due to reloads.
+      // If you want periodic refresh later, only update when URL changes.
     } else if (isLive) {
       setScorecardHtml(null);
+      setScorecardUrl("");
     }
 
     return () => {
@@ -574,97 +567,104 @@ function Fullmarket1() {
   }, [isLive, gameid]);
 
   // Fetch live stream when Live is selected
-  useEffect(() => {
-    if (!user) return;
-    const fetchLiveStream = async () => {
-      if (!isLive || !gameid || !match) {
-        setLiveStreamHtml(null);
-        setLiveStreamSrc(null);
-        return;
-      }
+  // useEffect(() => {
+  //   if (!user) return;
+  //   const fetchLiveStream = async () => {
+  //     if (!isLive || !gameid || !match) {
+  //       setLiveStreamHtml(null);
+  //       setLiveStreamSrc(null);
+  //       return;
+  //     }
 
-      try {
-        setLiveStreamLoading(true);
-        const response = await fetch('https://sporta-api.iomhost.com:4200/spb/match-live-stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            match_id: `${gameid}`,
-            sportsName: 'football',
-            match_name: match,
-          }),
-        });
+  //     try {
+  //       setLiveStreamLoading(true);
+  //       const response = await fetch('https://sporta-api.iomhost.com:4200/spb/match-live-stream', {
+  //         method: 'POST',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //         },
+  //         body: JSON.stringify({
+  //           match_id: `${gameid}`,
+  //           sportsName: 'football',
+  //           match_name: match,
+  //         }),
+  //       });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+  //       if (!response.ok) {
+  //         throw new Error(`HTTP error! status: ${response.status}`);
+  //       }
 
-        const result = await response.json();
-        console.log("Live stream API response:", result);
+  //       const result = await response.json();
+  //       console.log("Live stream API response:", result);
         
-        if (result.status && result.data) {
-          const streamData = result.data;
-          console.log("Live stream data:", streamData);
-          console.log("Data type:", typeof streamData);
+  //       if (result.status && result.data) {
+  //         const streamData = result.data;
+  //         console.log("Live stream data:", streamData);
+  //         console.log("Data type:", typeof streamData);
           
-          let streamUrl = null;
+  //         let streamUrl = null;
           
-          // Check if result.data is already a direct URL
-          if (typeof streamData === 'string' && (streamData.startsWith('http://') || streamData.startsWith('https://'))) {
-            // It's already a URL string - use it directly
-            streamUrl = streamData.trim();
-            console.log("✅ Direct URL detected:", streamUrl);
-          } else if (typeof streamData === 'string') {
-            // Try to extract URL from HTML iframe string (fallback)
-            const srcMatch = streamData.match(/src=["']([^"']+)["']/);
-            streamUrl = srcMatch ? srcMatch[1].trim() : null;
-            console.log("Extracted URL from HTML:", streamUrl || "No URL found");
-          }
+  //         // Check if result.data is already a direct URL
+  //         if (typeof streamData === 'string' && (streamData.startsWith('http://') || streamData.startsWith('https://'))) {
+  //           // It's already a URL string - use it directly
+  //           streamUrl = streamData.trim();
+  //           console.log("✅ Direct URL detected:", streamUrl);
+  //         } else if (typeof streamData === 'string') {
+  //           // Try to extract URL from HTML iframe string (fallback)
+  //           const srcMatch = streamData.match(/src=["']([^"']+)["']/);
+  //           streamUrl = srcMatch ? srcMatch[1].trim() : null;
+  //           console.log("Extracted URL from HTML:", streamUrl || "No URL found");
+  //         }
           
-          // Validate the URL
-          if (streamUrl && streamUrl.length > 10) {
-            const isFallbackUrl = (
-              streamUrl.includes('not-available') ||
-              streamUrl.includes('unavailable') ||
-              streamUrl.includes('error') ||
-              (streamUrl.endsWith('.html') && !streamUrl.startsWith('http'))
-            );
+  //         // Validate the URL
+  //         if (streamUrl && streamUrl.length > 10) {
+  //           const isFallbackUrl = (
+  //             streamUrl.includes('not-available') ||
+  //             streamUrl.includes('unavailable') ||
+  //             streamUrl.includes('error') ||
+  //             (streamUrl.endsWith('.html') && !streamUrl.startsWith('http'))
+  //           );
             
-            if (!isFallbackUrl) {
-              // Valid streaming URL
-              console.log("✅ Setting live stream URL:", streamUrl);
-              setLiveStreamSrc(streamUrl);
-              setLiveStreamHtml(null); // Clear HTML since we're using direct URL
-            } else {
-              console.log("❌ Invalid or fallback URL detected:", streamUrl);
-              setLiveStreamSrc(null);
-              setLiveStreamHtml(null);
-            }
-          } else {
-            console.log("❌ No valid stream URL found");
-            setLiveStreamSrc(null);
-            setLiveStreamHtml(null);
-          }
-        } else {
-          console.log("❌ API response invalid:", result);
-          setLiveStreamSrc(null);
-          setLiveStreamHtml(null);
-          throw new Error(result.message || 'Failed to fetch live stream');
-        }
-      } catch (error) {
-        console.error('Error fetching live stream:', error);
-        setLiveStreamHtml(null);
-        setLiveStreamSrc(null);
-        toast.error('Failed to load live stream');
-      } finally {
-        setLiveStreamLoading(false);
-      }
-    };
+  //           if (!isFallbackUrl) {
+  //             // Valid streaming URL
+  //             console.log("✅ Setting live stream URL:", streamUrl);
+  //             setLiveStreamSrc(streamUrl);
+  //             setLiveStreamHtml(null); // Clear HTML since we're using direct URL
+  //           } else {
+  //             console.log("❌ Invalid or fallback URL detected:", streamUrl);
+  //             setLiveStreamSrc(null);
+  //             setLiveStreamHtml(null);
+  //           }
+  //         } else {
+  //           console.log("❌ No valid stream URL found");
+  //           setLiveStreamSrc(null);
+  //           setLiveStreamHtml(null);
+  //         }
+  //       } else {
+  //         console.log("❌ API response invalid:", result);
+  //         setLiveStreamSrc(null);
+  //         setLiveStreamHtml(null);
+  //         throw new Error(result.message || 'Failed to fetch live stream');
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching live stream:', error);
+  //       setLiveStreamHtml(null);
+  //       setLiveStreamSrc(null);
+  //       toast.error('Failed to load live stream');
+  //     } finally {
+  //       setLiveStreamLoading(false);
+  //     }
+  //   };
 
-    fetchLiveStream();
-  }, [isLive, gameid, match]);
+  //   fetchLiveStream();
+  // }, [isLive, gameid, match]);
+
+  useEffect(() => {
+    if (!gameid || !key) return;
+    setIsLoadingStream(true);
+    setLiveStreamUrl(mediaUrls.liveStreamUrl);
+    setIsLoadingStream(false);
+  }, [gameid, key, mediaUrls.liveStreamUrl]);
 
   // Reset live stream when switching away from Live
   useEffect(() => {
@@ -775,7 +775,7 @@ function Fullmarket1() {
         }))
     : [];
     
-    console.log("soccerOver05List", soccerOver05List);
+    
 
   const soccerOver15List = Array.isArray(dataSource)
   ? dataSource
@@ -794,8 +794,6 @@ function Fullmarket1() {
       }))
   : [];
   
-  console.log("soccerOver15List", soccerOver15List);
-
   const soccerOver25List = Array.isArray(dataSource)
   ? dataSource
       .filter(
@@ -813,7 +811,6 @@ function Fullmarket1() {
       }))
   : [];
   
-  console.log("soccerOver25List", soccerOver25List);
     
 //  console.log("match odd list",matchOddsList)
   const tiedMatchList = Array.isArray(bettingData)
@@ -926,8 +923,9 @@ const oddevenData =
   const team2 = dataSource?.[0]?.runners?.[1]?.name || dataSource?.[0]?.section?.[1]?.nat || dataSource?.[0]?.section?.[1]?.team || match?.split(' - ')?.[1] || "";
 
   const openBetSlip = (betData) => {
-    setBetSlipData(betData);
-    setSelectedBetData(betData);
+    const enriched = { ...betData, sportSid: 1 };
+    setBetSlipData(enriched);
+    setSelectedBetData(enriched);
     setBetSlipOpen(true);
     
     // Auto scroll to show the betting section and all fields above BetCard
@@ -983,45 +981,44 @@ const oddevenData =
           <span className='text-2xl'>-</span>
           <span className='font-semibold'>{team2}</span>
         </div>
-        <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
+        <div className='w-full'>
           {isLive ? (
-            <iframe
-              src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=gk_5db268ed77db3fe9577d7085eb75c2d23467093541ab3ac2`}
-              title="Watch Live"
-              className="w-full rounded-lg"
-              style={{ height: "50vh" }}
-              allowFullScreen
-              loading="lazy"
-              allow="
-                autoplay;
-                encrypted-media;
-                fullscreen;
-                picture-in-picture;
-                accelerometer;
-                gyroscope
-              "
-            />
+            isLoadingStream ? (
+              <div className='flex h-[50vh] w-full items-center justify-center bg-gray-200'>
+                <span>Loading stream...</span>
+              </div>
+            ) : (
+              <iframe
+                src={
+                 
+                  liveStreamUrl || mediaUrls.liveStreamUrl
+                }
+                title='Watch Live'
+                className='w-full'
+                style={{ height: '50vh' }}
+                allowFullScreen
+                loading='lazy'
+                allow='autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope'
+              />
+            )
+          ) : scorecardLoading ? (
+            <div className='flex h-[50vh] w-full items-center justify-center bg-gray-200'>
+              <span>Loading score...</span>
+            </div>
           ) : (
             <iframe
-              src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
-              allowFullScreen
-              className="w-full rounded-lg"
-              title="Live Score"
-              loading="lazy"
-              allow="
-                autoplay;
-                encrypted-media;
-                fullscreen;
-                picture-in-picture;
-                accelerometer;
-                gyroscope
-              "
+              src={scorecardUrl || undefined}
+              title='Live Score'
+              className='w-full'
+              style={{ height: '50vh' }}
+              loading='lazy'
+              allow='autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope'
             />
           )}
         </div>
         <div className='bg-[#1e1e1e] h-10 p-2 pl-4 pr-4 flex justify-between items-center'>
           <span className='text-white'>Exchange</span>
-          <span className='text-[#17934e]'>MatchedBDT &nbsp;{matchOddsList[0]?.matched}</span>
+          <span className='text-[#17934e]'>Matched INR &nbsp;{matchOddsList[0]?.matched}</span>
         </div>
         <div>
           {/* Match Odds Section */}
@@ -1106,4 +1103,4 @@ const oddevenData =
   )
 }
 
-export default Fullmarket1
+export default Fullmarket1;

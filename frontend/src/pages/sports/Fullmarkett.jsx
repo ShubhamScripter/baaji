@@ -320,7 +320,7 @@
 //       </div>
 //       <div className='bg-[#1e1e1e] h-10 p-2 pl-4 pr-4 flex justify-between items-center'>
 //         <span className='text-white'>Exchange</span>
-//         <span className='text-[#17934e]'>MatchedBDT &nbsp; 14,987,086.26</span>
+//         <span className='text-[#17934e]'>Matched INR &nbsp; 14,987,086.26</span>
 //       </div>
 //       <div>
 //         {/* Match Odds Section */}
@@ -651,7 +651,7 @@
 //       </div>
 //       <div className='bg-[#1e1e1e] h-10 p-2 pl-4 pr-4 flex justify-between items-center'>
 //         <span className='text-white'>Exchange</span>
-//         <span className='text-[#17934e]'>MatchedBDT &nbsp; 14,987,086.26</span>
+//         <span className='text-[#17934e]'>Matched INR &nbsp; 14,987,086.26</span>
 //       </div>
 //       <div>
 //         {/* Match Odds Section */}
@@ -734,15 +734,24 @@ import { fetchCricketBatingData } from '../../features/sports/cricketSlice';
 import Spinner from '../../components/Spinner';
 import { div } from 'motion/react-client';
 import { toast } from 'react-hot-toast';
+import { getSportsMediaUrls, SPORTS_MEDIA_TYPE } from '../../utils/sportsMediaUrls';
 function Fullmarkett() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { gameid } = useParams() || {};
   const { match } = useParams() || {};
+  const key =
+    import.meta.env.VITE_BULKAPI_KEY ||
+    "gk_4b8bf40e61c7828c64e1b1f684cc4eaa6a243cef3d4c622f";
+  const mediaUrls = getSportsMediaUrls({
+    sport: SPORTS_MEDIA_TYPE.CRICKET,
+    gameid,
+    key,
+  });
   const hasCheckedRef = useRef(false); // ✅ run only once
   const [selected, setSelected] = useState("Fancybet");
   const[isFacncyActive, setIsFancyActive] = useState(true);
-  const [isLive, setIsLive] = useState(true);
+  const [isLive, setIsLive] = useState(false);
   const [TiedOddSelected, setTiedOddSelected] = useState("odds");
 
   const [betSlipOpen, setBetSlipOpen] = useState(false);
@@ -763,6 +772,9 @@ function Fullmarkett() {
   const [liveStreamSrc, setLiveStreamSrc] = useState(null);
   const [liveStreamLoading, setLiveStreamLoading] = useState(false);
   const liveStreamIframeRef = useRef(null);
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
+  const [liveStreamUrl, setLiveStreamUrl] = useState("");
+  const [scorecardUrl, setScorecardUrl] = useState("");
   const { loading, successMessage, errorMessage } = useSelector(
     (state) => state.bet
   );
@@ -1056,10 +1068,9 @@ console.log("data source",dataSource)
   }, [successMessage, errorMessage, dispatch]);
 
   
-  console.log("bettingData............",bettingData)
+ 
   const fancy1List = bettingData?.filter((item) => item.mname === "Normal");
-console.log("fancy1List............",fancy1List)
- console.log("fancy2List............",fancy1List?.[0]?.section)
+
   const fancy1Data =
     Array.isArray(fancy1List) && fancy1List.length > 0 && fancy1List[0].section
       ? fancy1List?.[0].section.map((sec) => ({
@@ -1098,7 +1109,7 @@ console.log("fancy1List............",fancy1List)
 //   }))
 // );
 // console.log("fancy1 data.....",fancy1Data)
-console.log("fancy1 data............",fancy1Data);
+
   // const oddevenList = bettingData?.filter((item) => item.mname === "oddeven");
   // console.log("odd even list ",oddevenList)
   // const oddevenData =
@@ -1221,47 +1232,41 @@ const fetchScorecard = async (isInitial = false) => {
   if (!gameid || isLive) return;
 
   try {
-    const url = `https://baajilive.com/api/check/cricket/score-v2?event_id=${gameid}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    if (isInitial) setScorecardLoading(true);
 
-    let htmlContent = '';
-    const contentType = response.headers.get('content-type') || '';
+    const response = await fetch(
+      mediaUrls.scorecardUrl
+    );
+    const json = await response.json();
 
-    if (contentType.includes('application/json')) {
-      const json = await response.json();
-      // API returns { success: true, data: "<html...>" }
-      htmlContent = json?.data ?? json?.html ?? '';
+    const iframeUrl = json?.iframe?.url;
+    if (json?.success && iframeUrl) {
+      setScorecardUrl(iframeUrl);
+      setScorecardHtml(
+        `<!doctype html><html><head><meta charset="utf-8" /></head><body style="margin:0;padding:0;"><iframe src="${iframeUrl}" style="border:0;width:100%;height:50vh;" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope" allowfullscreen></iframe></body></html>`
+      );
     } else {
-      htmlContent = await response.text();
-      // sometimes the API returns a JSON-encoded string: "\"<html>...\""
-      if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-        try { htmlContent = JSON.parse(htmlContent); } catch (e) { /* keep as-is */ }
-      }
-    }
-
-    if (htmlContent && htmlContent.trim().length > 0) {
-      setScorecardHtml(htmlContent);
-    } else {
-      throw new Error("Empty response from scorecard API");
+      throw new Error(json?.message || "Failed to fetch live score");
     }
   } catch (error) {
     console.error("Error fetching scorecard:", error);
-    if (isInitial) setScorecardHtml(null);
+    if (isInitial) {
+      setScorecardHtml(null);
+      setScorecardUrl("");
+    }
+  } finally {
+    if (isInitial) setScorecardLoading(false);
   }
 };
 // ...existing code...
     if (!isLive && gameid) {
       // Fetch immediately with loading indicator
       fetchScorecard(true);
-      
-      // Set up auto-refresh every 3 seconds (without loading indicator)
-      intervalId = setInterval(() => {
-        fetchScorecard(false);
-      }, 3000);
+      // Don't auto-refresh the iframe; it causes blinking due to reloads.
     } else if (isLive) {
       // Clear scorecard when switching to Live
       setScorecardHtml(null);
+      setScorecardUrl("");
     }
 
     // Cleanup interval on unmount or when dependencies change
@@ -1310,6 +1315,13 @@ const fetchScorecard = async (isInitial = false) => {
     setLiveStreamLoading(false);
   }, [isLive, gameid, match]);
 
+  useEffect(() => {
+    if (!gameid || !key) return;
+    setIsLoadingStream(true);
+    setLiveStreamUrl(mediaUrls.liveStreamUrl);
+    setIsLoadingStream(false);
+  }, [gameid, key, mediaUrls.liveStreamUrl]);
+
   // Reset live stream when switching away from Live
   useEffect(() => {
     if (!isLive || !user) {
@@ -1349,8 +1361,9 @@ const fetchScorecard = async (isInitial = false) => {
   }, [liveStreamHtml, isLive, liveStreamSrc]);
 
   const openBetSlip = (betData) => {
-    setBetSlipData(betData);
-    setSelectedBetData(betData);
+    const enriched = { ...betData, sportSid: 4 };
+    setBetSlipData(enriched);
+    setSelectedBetData(enriched);
     setBetSlipOpen(true);
     
     // Auto scroll to show the betting section and all fields above BetCard
@@ -1422,10 +1435,10 @@ const fetchScorecard = async (isInitial = false) => {
           <span className='text-2xl'>-</span>
           <span className='font-semibold'>{team2}</span>
         </div>
-        <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
+        {/* <div style={{ margin: 0, padding: 0, lineHeight: 0 }}>
           {isLive ? (
             <iframe
-              src={`https://live.cricketid.xyz/directStream?gmid=${gameid}&key=gk_5db268ed77db3fe9577d7085eb75c2d23467093541ab3ac2`}
+              src={`https://81habibi.com/api/v1/live-stream?gmid=${gameid}&key=gk_4b8bf40e61c7828c64e1b1f684cc4eaa6a243cef3d4c622f`}
               title="Watch Live"
               className="w-full rounded-lg"
               style={{ height: "50vh" }}
@@ -1442,7 +1455,7 @@ const fetchScorecard = async (isInitial = false) => {
             />
           ) : (
             <iframe
-              src={`https://score.akamaized.uk/diamond-live-score?gmid=${gameid}`}
+              src={`https://81habibi.com/api/v1/live-score?gmid=${gameid}&key=gk_4b8bf40e61c7828c64e1b1f684cc4eaa6a243cef3d4c622f`}
               allowFullScreen
               className="w-full rounded-lg"
               title="Live Score"
@@ -1457,12 +1470,47 @@ const fetchScorecard = async (isInitial = false) => {
               "
             />
           )}
+        </div> */}
+         <div className='w-full'>
+          {isLive ? (
+            isLoadingStream ? (
+              <div className='flex h-[50vh] w-full items-center justify-center bg-gray-200'>
+                <span>Loading stream...</span>
+              </div>
+            ) : (
+              <iframe
+                src={
+          
+                  liveStreamUrl || mediaUrls.liveStreamUrl
+                }
+                title='Watch Live'
+                className='w-full'
+                style={{ height: '50vh' }}
+                allowFullScreen
+                loading='lazy'
+                allow='autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope'
+              />
+            )
+          ) : scorecardLoading ? (
+            <div className='flex h-[50vh] w-full items-center justify-center bg-gray-200'>
+              <span>Loading score...</span>
+            </div>
+          ) : (
+            <iframe
+              src={scorecardUrl || undefined}
+              title='Live Score'
+              className='w-full'
+              style={{ height: '50vh' }}
+              loading='lazy'
+              allow='autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope'
+            />
+          )}
         </div>
         <div className='bg-[#1e1e1e] h-10 p-2 pl-4 pr-4 flex justify-between items-center'>
           <span className='text-white'>Exchange</span>
-          {/* <span className='text-[#17934e]'>MatchedBDT &nbsp;{matchOddsList[0]?.matched}</span> */}
+          {/* <span className='text-[#17934e]'>Matched INR &nbsp;{matchOddsList[0]?.matched}</span> */}
           <span className="text-[#17934e]">
-            MatchedBDT&nbsp;
+            Matched INR&nbsp;
             {TiedOddSelected === "tied"
               ? tiedMatchList?.[0]?.matched ?? 0
               : matchOddsList?.[0]?.matched ?? 0}

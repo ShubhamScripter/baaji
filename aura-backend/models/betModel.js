@@ -23,6 +23,7 @@ const betSchema = new mongoose.Schema(
     roundId: {
       type: String,
     },
+    fancyId: { type: String },
     userName: {
       type: String,
       required: true,

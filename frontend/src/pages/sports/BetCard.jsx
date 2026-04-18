@@ -325,7 +325,7 @@ function BetCard({ odds, onClose, onBetDataChange }) {
 
     const formData = {
       gameId: odds?.gameId,
-      sid: odds?.sid || 4,
+      sid: odds?.sportSid ?? odds?.sportId ?? odds?.sport_id ?? 4,
       otype: odds?.otype || odds?.type, // back/lay
       price: numericStake,
       xValue: parseFloat(betOdds),

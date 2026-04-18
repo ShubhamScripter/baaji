@@ -234,8 +234,7 @@ import { IoInformationCircle } from "react-icons/io5";
 import { getPendingBetAmo } from "../../features/sports/betReducer";
 function Fancybet({ openBetSlip, fancy1Data, gameid, match }) {
   const { pendingBet } = useSelector((state) => state.bet);
-  console.log("pending bet", pendingBet)
-  console.log("fancy1Data in fancybet", fancy1Data);
+  
 
   // Transform backend fancy data
   const fancyMarkets = Array.isArray(fancy1Data)
@@ -259,7 +258,7 @@ function Fancybet({ openBetSlip, fancy1Data, gameid, match }) {
       };
     })
     : [];
-console.log("fancyMarkets.........", fancyMarkets)
+
   const formatToK = (num) => {
     if (!num || num < 1000) return num;
     const n = Number(num);
@@ -324,6 +323,7 @@ console.log("fancyMarkets.........", fancyMarkets)
 
                   {/* BUTTONS */}
                   {market.values.map((item, i) => (
+                  
                     <div
                       key={i}
                       onClick={() => {
@@ -332,6 +332,7 @@ console.log("fancyMarkets.........", fancyMarkets)
                             type: i === 0 ? "No" : "Yes",
                             selection: market.title,
                             odds: item.value,
+                            xValue: item.odds,
                             otype: i === 0 ? "lay" : "back", // No = lay, Yes = back
                             gameId: gameid,
                             eventName: match,
@@ -341,8 +342,9 @@ console.log("fancyMarkets.........", fancyMarkets)
                             max: market.max ?? 0,
                             sid: 4,
                             marketId: market.marketid,
-                            fancyScore: item.odds,
+                            fancyScore: item.value,
                             isFancy: true,
+                          
                           });
                         }
                       }}
@@ -355,10 +357,10 @@ console.log("fancyMarkets.........", fancyMarkets)
                       `}
                     >
                       <span className="text-[1.071rem] font-bold leading-none">
-                        {formatToK(item.odds)}
+                        {formatToK(item.value) }
                       </span>
                       <span className="text-[.643rem]">
-                      {item.value}
+                      {item.odds}
                       </span>
                     </div>
                   ))}
