@@ -49,7 +49,7 @@ export const fetchActivityLogs = createAsyncThunk(
   async (userId, { rejectWithValue }) => {
     try {
       // Only the relative path is needed
-      const { data } = await axiosInstance.post('/get/login-history', { userId });
+      const { data } = await axiosInstance.get(`/get/login-history/${userId}`, { userId });
       return data.data || [];
     } catch (error) {
       return rejectWithValue(

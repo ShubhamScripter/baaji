@@ -1362,3 +1362,150 @@ export const getBetHistory = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const getprofitlossofdownlineofreportlistUserDataV2 = async (req, res) => {
+  const { id } = req;
+  const {
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    targetUserId,
+    betStatus = 'Settled',
+  } = req.query;
+
+  try {
+    const admin = await SubAdmin.findById(targetUserId || id);
+    if (!admin) throw new Error('Admin not found');
+
+    let downlineIds = [];
+
+    if (admin.role === 'user') {
+      downlineIds.push(admin._id.toString());
+    } else {
+      const downlineUsers = await SubAdmin.aggregate([
+        { $match: { _id: admin._id } },
+        {
+          $graphLookup: {
+            from: 'subadmins',
+            startWith: '$code',
+            connectFromField: 'code',
+            connectToField: 'invite',
+            as: 'downline',
+            restrictSearchWithMatch: { status: { $ne: 'delete' } },
+          },
+        },
+      ]);
+
+      downlineIds = [
+        admin._id.toString(),
+        ...(downlineUsers[0]?.downline.map((u) => u._id.toString()) || []),
+      ];
+    }
+
+    // Use betHistoryModel: one document per placement (betModel can merge many stakes)
+    const historyQuery = {
+      userId: { $in: downlineIds },
+    };
+
+    const statusMap = {
+      unmatched: 0,
+      matched: 1,
+      settled: { $in: [1, 2] },
+      cancelled: 4,
+      voided: 3,
+      all: { $in: [0, 1, 2, 3, 4] },
+    };
+
+    const normalizedBetStatus = String(betStatus).trim().toLowerCase();
+    historyQuery.status = statusMap[normalizedBetStatus] ?? statusMap.settled;
+
+    if (startDate && endDate) {
+      const startDay = startDate.substring(0, 10);
+      const endDay = endDate.substring(0, 10);
+      const normalizedStartTime = startTime || '00:00';
+      const normalizedEndTime = endTime || '23:59';
+
+      const startUTC = new Date(`${startDay}T${normalizedStartTime}:00.000Z`);
+      const endUTC = new Date(`${endDay}T${normalizedEndTime}:59.999Z`);
+
+      if (!Number.isNaN(startUTC.getTime()) && !Number.isNaN(endUTC.getTime())) {
+        historyQuery.date = { $gte: startUTC, $lte: endUTC };
+      } else {
+        historyQuery.date = getDateRangeUTC(startDate, endDate);
+      }
+    }
+
+    const historyRows = await betHistoryModel
+      .find(historyQuery)
+      .sort({ eventName: 1, createdAt: -1 })
+      .lean();
+
+    if (!historyRows.length) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const report = {};
+
+    for (const row of historyRows) {
+      const eventKey = (row.eventName || 'Unknown Event').trim() || 'Unknown Event';
+
+      if (!report[eventKey]) {
+        report[eventKey] = {
+          eventName: eventKey,
+          gameName: row.gameName,
+          settledDate: row.settledAt || row.date,
+          totalProfitLoss: 0,
+          bets: [],
+          summary: {
+            totalStakes: 0,
+            backSubtotal: 0,
+            laySubtotal: 0,
+            marketSubtotal: 0,
+            commission: 0,
+            netMarketTotal: 0,
+          },
+        };
+      }
+
+      const profitLoss =
+        Number(row.profitLossChange ?? row.resultAmount ?? 0) || 0;
+      const stake = Number(row.price) || 0;
+
+      report[eventKey].bets.push({
+        userName: row.userName,
+        betId: row._id.toString(),
+        parentBetId: row.betId || null,
+        status: row.status,
+        selection: row.teamName,
+        odds: row.xValue,
+        stake,
+        type: row.otype,
+        placedAt: row.createdAt,
+        profitLoss,
+      });
+
+      report[eventKey].summary.totalStakes += stake;
+      if (row.otype === 'back') report[eventKey].summary.backSubtotal += profitLoss;
+      if (row.otype === 'lay') report[eventKey].summary.laySubtotal += profitLoss;
+
+      report[eventKey].summary.marketSubtotal =
+        report[eventKey].summary.backSubtotal +
+        report[eventKey].summary.laySubtotal;
+      report[eventKey].summary.netMarketTotal =
+        report[eventKey].summary.marketSubtotal;
+      report[eventKey].totalProfitLoss += profitLoss;
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: Object.values(report),
+    });
+  } catch (error) {
+    console.error('getProfitLossReportByEvent V2 error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

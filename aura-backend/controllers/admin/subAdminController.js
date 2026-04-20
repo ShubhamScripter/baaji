@@ -402,17 +402,17 @@ export const createSubAdmin = async (req, res) => {
     });
     await subAdmin.save();
 
-    await TransactionHistory.create({
-      userId: subAdmin._id,
-      userName: subAdmin.userName,
-      withdrawl: 0,
-      deposite: balance,
-      amount: balance,
-      remark: 'Opening Balance',
-      from: admin.userName,
-      to: subAdmin.userName,
-      invite: admin.code,
-    });
+    // await TransactionHistory.create({
+    //   userId: subAdmin._id,
+    //   userName: subAdmin.userName,
+    //   withdrawl: 0,
+    //   deposite: balance,
+    //   amount: balance,
+    //   remark: 'Opening Balance',
+    //   from: admin.userName,
+    //   to: subAdmin.userName,
+    //   invite: admin.code,
+    // });
 
     // Downline calculations (exclude deleted users)
     const downlineUser = await SubAdmin.find({
@@ -771,7 +771,7 @@ export const forceLogoutUser = async (req, res) => {
 
 export const getLoginHistory = async (req, res) => {
   try {
-    const { userId } = req.params; // passed in route as /credit-ref-history/:userId
+    let { userId } = req.params || req.body.userId; // passed in route as /credit-ref-history/:userId
     // console.log("userId", userId);
     const data = await LoginHistory.find({ userId }).sort({ createdAt: -1 }); // optional: latest first
     // console.log("data", data);

@@ -181,23 +181,32 @@ function BettingProfitLoss() {
     const dates = getDefaultDates();
     return dates.endDate;
   });
+  const [startTime, setStartTime] = useState("00:00");
+  const [endTime, setEndTime] = useState("23:59");
 
   // Function to fetch data from API
-  const fetchExchangeData = async (customStartDate = null, customEndDate = null) => {
+  const fetchExchangeData = async (
+    customStartDate = null,
+    customEndDate = null,
+    customStartTime = null,
+    customEndTime = null
+  ) => {
     try {
       setLoading(true);
       
       // Use custom dates if provided, otherwise use state dates
       const useStartDate = customStartDate || startDate;
       const useEndDate = customEndDate || endDate;
-      
-      // Use dates from state, fallback to default if not set
-      const dateParams = useStartDate && useEndDate 
-        ? `&startDate=${useStartDate}&endDate=${useEndDate}`
-        : '';
-      
+      const useStartTime = customStartTime || startTime;
+      const useEndTime = customEndTime || endTime;
+
+      let queryParams = `page=1&limit=10&targetUserId=${userId}`;
+      if (useStartDate && useEndDate) {
+        queryParams += `&startDate=${useStartDate}&endDate=${useEndDate}&startTime=${useStartTime}&endTime=${useEndTime}`;
+      }
+
       const response = await axiosInstance.get(
-        `/get/profit-loss-by-downline-reports-userData?page=1&limit=10&targetUserId=${userId}${dateParams}`
+        `/get/profit-loss-by-downline-reports-userData-v2?${queryParams}`
       );
 
       if (response.data.success) {
@@ -233,20 +242,27 @@ function BettingProfitLoss() {
   };
 
   // Function to fetch casino data from API
-  const fetchCasinoData = async (customStartDate = null, customEndDate = null) => {
+  const fetchCasinoData = async (
+    customStartDate = null,
+    customEndDate = null,
+    customStartTime = null,
+    customEndTime = null
+  ) => {
     try {
       setLoading(true);
       
       // Use custom dates if provided, otherwise use state dates
       const useStartDate = customStartDate || startDate;
       const useEndDate = customEndDate || endDate;
+      const useStartTime = customStartTime || startTime;
+      const useEndTime = customEndTime || endTime;
       
       // Build query parameters
       let queryParams = `id=${userId}&page=1&limit=100`;
       
       // Only add date parameters if both dates are available
       if (useStartDate && useEndDate) {
-        queryParams += `&startDate=${useStartDate}&endDate=${useEndDate}`;
+        queryParams += `&startDate=${useStartDate}&endDate=${useEndDate}&startTime=${useStartTime}&endTime=${useEndTime}`;
       }
       
       const response = await axiosInstance.get(
@@ -387,22 +403,6 @@ function BettingProfitLoss() {
             <div className="bg-[#e0e6e6] border-b border-b-[#7e97a7] p-2">
               <div className="flex justify-between items-center gap-2 mt-3">
                 <div className="flex justify-center items-center gap-2">
-                  <label htmlFor="betStatus" className="text-xs font-[700]">
-                    Bet Status
-                  </label>
-                  <select
-                    name=""
-                    id=""
-                    className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] bg-[#fff] min-w-[170px] text-xs p-2"
-                  >
-                    <option value="Unmatched">Unmatched</option>
-                    <option value="Matched">Matched</option>
-                    <option value="Settled">Settled</option>
-                    <option value="Cancelled">Cancelled</option>
-                    <option value="Voided">Voided</option>
-                  </select>
-                </div>
-                <div className="flex justify-center items-center gap-2">
                   <label htmlFor="startDate" className="text-xs font-[700]">
                     From
                   </label>
@@ -412,9 +412,12 @@ function BettingProfitLoss() {
                     onChange={(e) => setStartDate(e.target.value)}
                     className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] bg-[#fff] min-w-[170px] text-xs p-2"
                   />
-                  <div className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] text-xs p-2">
-                    00:00
-                  </div>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] text-xs p-2"
+                  />
                 </div>
                 <div className="flex justify-center items-center gap-2">
                   <label htmlFor="endDate" className="text-xs font-[700]">
@@ -426,9 +429,12 @@ function BettingProfitLoss() {
                     onChange={(e) => setEndDate(e.target.value)}
                     className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] bg-[#fff] min-w-[170px] text-xs p-2"
                   />
-                  <div className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] text-xs p-2">
-                    00:00
-                  </div>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="border border-[#aaa] shadow-[inset_0_2px_0_0_#0000001a] text-xs p-2"
+                  />
                 </div>
               </div>
               <div className="mt-4 flex gap-2 pb-2">
@@ -438,11 +444,13 @@ function BettingProfitLoss() {
                     const today = new Date().toISOString().split('T')[0];
                     setStartDate(today);
                     setEndDate(today);
+                    setStartTime("00:00");
+                    setEndTime("23:59");
                     // Fetch with new dates
                     if (selectedType === "Exchange") {
-                      fetchExchangeData(today, today);
+                      fetchExchangeData(today, today, "00:00", "23:59");
                     } else if (selectedType === "Casino") {
-                      fetchCasinoData(today, today);
+                      fetchCasinoData(today, today, "00:00", "23:59");
                     }
                   }}
                 >
@@ -456,11 +464,13 @@ function BettingProfitLoss() {
                     const yesterdayStr = yesterday.toISOString().split('T')[0];
                     setStartDate(yesterdayStr);
                     setEndDate(yesterdayStr);
+                    setStartTime("00:00");
+                    setEndTime("23:59");
                     // Fetch with new dates
                     if (selectedType === "Exchange") {
-                      fetchExchangeData(yesterdayStr, yesterdayStr);
+                      fetchExchangeData(yesterdayStr, yesterdayStr, "00:00", "23:59");
                     } else if (selectedType === "Casino") {
-                      fetchCasinoData(yesterdayStr, yesterdayStr);
+                      fetchCasinoData(yesterdayStr, yesterdayStr, "00:00", "23:59");
                     }
                   }}
                 >
@@ -485,11 +495,13 @@ function BettingProfitLoss() {
                     const defaultDates = getDefaultDates();
                     setStartDate(defaultDates.startDate);
                     setEndDate(defaultDates.endDate);
+                    setStartTime("00:00");
+                    setEndTime("23:59");
                     // Fetch with default dates
                     if (selectedType === "Exchange") {
-                      fetchExchangeData(defaultDates.startDate, defaultDates.endDate);
+                      fetchExchangeData(defaultDates.startDate, defaultDates.endDate, "00:00", "23:59");
                     } else if (selectedType === "Casino") {
-                      fetchCasinoData(defaultDates.startDate, defaultDates.endDate);
+                      fetchCasinoData(defaultDates.startDate, defaultDates.endDate, "00:00", "23:59");
                     }
                   }}
                 >

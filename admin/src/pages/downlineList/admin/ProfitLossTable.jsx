@@ -30,10 +30,11 @@ const ProfitLossTable = ({ bettingData }) => {
           if (currentPage < totalPages) setCurrentPage((p) => p + 1);
         };
       
+        const pageStart = (currentPage - 1) * rowsPerPage;
+
         const currentdata = useMemo(() => {
-          const start = (currentPage - 1) * rowsPerPage;
-          return data.slice(start, start + rowsPerPage);
-        }, [data, currentPage, rowsPerPage]);
+          return data.slice(pageStart, pageStart + rowsPerPage);
+        }, [data, pageStart, rowsPerPage]);
 
         function getPageNumbers(current, total, maxButtons = 7) {
           const pages = [];
@@ -94,7 +95,7 @@ const ProfitLossTable = ({ bettingData }) => {
           </tr>
         ) : (
           currentdata.map((match, i) => (
-            <Fragment key={i}>
+            <Fragment key={`${pageStart + i}-${match.match}`}>
               <tr
                 className={
                   i % 2 === 0
@@ -116,7 +117,7 @@ const ProfitLossTable = ({ bettingData }) => {
                   >
                     ({match.profitLoss})
                   </span>
-                  <button onClick={() => toggleExpand(i)}>
+                  <button onClick={() => toggleExpand(pageStart + i)}>
                     {match.expanded ? <FaMinusSquare /> : <FaPlusSquare />}
                   </button>
                 </td>

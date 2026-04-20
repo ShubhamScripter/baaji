@@ -377,7 +377,7 @@ export const getLoginHistory = createAsyncThunk(
   "creditRef/getLoginHistory",
   async (userId, { rejectWithValue }) => {
     try {
-      const res = await axios.get(`/get/login-history/${userId}`, {
+      const res = await axios.post(`/get/login-history/${userId}`, {
         withCredentials: true,
       });
       return res.data;
