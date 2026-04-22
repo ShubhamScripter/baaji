@@ -145,41 +145,77 @@ function AprofitMarket() {
                 endDate: params.endDate || filters.endDate
             })
 
-            const response = await axiosInstance.get(`/get/my-reports/by-events?${queryParams}`)
+            const response = await axiosInstance.get(`/get/my-reports/by-events-grouped?${queryParams}`)
             
             if (response.data.success) {
                 const { report } = response.data.data
                 
                 // Map API response to UI format
-                const mappedData = report.map((item, index) => ({
-                    id: index + 1,
-                    title: item.name,
-                    stake: 0, // Not provided in API response
-                    downline: (item.downlineWinAmount - item.downlineLossAmount).toFixed(2),
-                    player: item.myProfit.toFixed(2),
-                    comm: 0, // Not provided in API response
-                    upline: (item.downlineWinAmount - item.downlineLossAmount).toFixed(2),
-                    children: [
-                        {
-                            label: item.marketName,
-                            stake: 0,
-                            downline: (item.downlineWinAmount - item.downlineLossAmount).toFixed(2),
-                            player: item.myProfit.toFixed(2),
-                            comm: 0,
-                            upline: (item.downlineWinAmount - item.downlineLossAmount).toFixed(2)
-                        }
-                    ],
-                    // Additional fields from API
-                    eventName: item.eventName,
-                    gameName: item.gameName,
-                    marketName: item.marketName,
-                    userName: item.userName,
-                    date: item.date,
-                    result: item.result,
-                    marketId: item.marketId,
-                    downlineWinAmount: item.downlineWinAmount,
-                    downlineLossAmount: item.downlineLossAmount
-                }))
+                const mappedData = report.map((item, index) => {
+                    const hasSectionChildren = Array.isArray(item.children) && item.children.length > 0
+                    const netAmount = (item.downlineWinAmount || 0) - (item.downlineLossAmount || 0)
+
+                    const children = hasSectionChildren
+                        ? item.children.map((child) => {
+                            const childNet = (child.downlineWinAmount || 0) - (child.downlineLossAmount || 0)
+                            return {
+                                label: child.label || child.gameType || child.marketName || 'Unknown',
+                                stake: 0,
+                                downline: childNet.toFixed(2),
+                                player: (child.myProfit || 0).toFixed(2),
+                                comm: 0,
+                                upline: childNet.toFixed(2),
+                                bets: Array.isArray(child.bets) ? child.bets.map((bet, betIndex) => ({
+                                    id: bet.betId || `${index + 1}-${betIndex + 1}`,
+                                    userName: bet.userName,
+                                    gameName: bet.gameName || item.gameName,
+                                    eventName: bet.eventName || item.eventName,
+                                    marketName: bet.marketName,
+                                    selection: bet.selection || '',
+                                    gameType: bet.gameType,
+                                    odds: bet.odds || 0,
+                                    stake: bet.stake || 0,
+                                    type: bet.type || '',
+                                    profitLoss: bet.profitLoss || 0,
+                                    status: bet.status,
+                                    ip: bet.ip || '',
+                                    date: bet.date
+                                })) : []
+                            }
+                        })
+                        : [
+                            {
+                                label: item.marketName,
+                                stake: 0,
+                                downline: netAmount.toFixed(2),
+                                player: (item.myProfit || 0).toFixed(2),
+                                comm: 0,
+                                upline: netAmount.toFixed(2),
+                                bets: []
+                            }
+                        ]
+
+                    return {
+                        id: index + 1,
+                        title: item.name,
+                        stake: 0, // Not provided in API response
+                        downline: netAmount.toFixed(2),
+                        player: (item.myProfit || 0).toFixed(2),
+                        comm: 0, // Not provided in API response
+                        upline: netAmount.toFixed(2),
+                        children,
+                        // Additional fields from API
+                        eventName: item.eventName,
+                        gameName: item.gameName,
+                        marketName: item.marketName,
+                        userName: item.userName,
+                        date: item.date,
+                        result: item.result,
+                        marketId: item.marketId,
+                        downlineWinAmount: item.downlineWinAmount,
+                        downlineLossAmount: item.downlineLossAmount
+                    }
+                })
 
                 setmatchesData(mappedData)
             }

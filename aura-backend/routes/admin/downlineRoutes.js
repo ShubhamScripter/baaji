@@ -6,6 +6,7 @@ import {
   getGraphLiveData,
   getMyReportByDownline,
   getMyReportByEvents,
+  getMyReportByEventsGrouped,
   getprofitlossofdownlineofreportlistUserDataV2,
 } from '../../controllers/admin/downlineController.js';
 import { adminAuthMiddleware } from '../../middleware/authMiddleware.js';
@@ -17,6 +18,11 @@ router.get(
   '/get/my-reports/by-events',
   adminAuthMiddleware,
   getMyReportByEvents
+);
+router.get(
+  '/get/my-reports/by-events-grouped',
+  adminAuthMiddleware,
+  getMyReportByEventsGrouped
 );
 router.get(
   '/get/my-reports/by-downline',

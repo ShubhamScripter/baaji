@@ -10,6 +10,7 @@ import creditRefHistory from '../../models/creditRefHistory.js';
 import DepositHistory from '../../models/depositeHistoryModel.js';
 import LoginHistory from '../../models/loginHistory.js';
 import passwordHistory from '../../models/passwordHistory.js';
+import CasinoBetHistory from '../../models/casinoBetHistory.model.js';
 import SubAdmin from '../../models/subAdminModel.js';
 import TransactionHistory from '../../models/transtionHistoryModel.js';
 import WithdrawalHistory from '../../models/withdrawalHistoryModel.js';
@@ -1772,15 +1773,6 @@ export const changePasswordByDownline = async (req, res) => {
       return res.status(404).json({ message: 'Sub-admin not found' });
     }
 
-    // Validate new password: must contain letters AND numbers, NO special characters
-    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z0-9]{8,}$/;
-    if (!passwordRegex.test(newPassword)) {
-      return res.status(400).json({
-        message:
-          'Password must be at least 8 characters with both letters and numbers. Special characters are not allowed.',
-      });
-    }
-
     const isMatch = await bcrypt.compare(oldPassword, Admin.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'master Password Wrong !' });
@@ -2169,6 +2161,168 @@ export const getAllDownlineBets = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching bets:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const getLiveDownlineBets = async (req, res) => {
+  try {
+    const requesterId = req.id || req.body?.id;
+    const {
+      startDate,
+      endDate,
+      page = 1,
+      limit = 100,
+      selectedGame = '',
+      selectedVoid = 'unsettel',
+    } = req.query;
+
+    if (!requesterId) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Requester ID is required' });
+    }
+
+    const admin = await SubAdmin.findById(requesterId);
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Admin not found' });
+    }
+
+    const queue = [admin.code];
+    const userIds = [];
+
+    if (admin.role === 'user') {
+      userIds.push(admin._id);
+    } else {
+      while (queue.length > 0) {
+        const currentCode = queue.shift();
+        const downlineUsers = await SubAdmin.find({
+          invite: currentCode,
+          status: { $ne: 'delete' },
+        }).select('_id role code');
+
+        for (const user of downlineUsers) {
+          if (user.role === 'user') userIds.push(user._id);
+          else queue.push(user.code);
+        }
+      }
+    }
+
+    const userIdStrings = userIds.map((u) => u.toString());
+    if (userIdStrings.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        totalPages: 0,
+      });
+    }
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 100, 1);
+    const skip = (pageNum - 1) * limitNum;
+    const isCasino = selectedGame === 'Casino Game';
+
+    const filterByDate = (query, fieldName) => {
+      if (!startDate || !endDate) return;
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setDate(end.getDate() + 1);
+      query[fieldName] = { $gte: start, $lt: end };
+    };
+
+    if (isCasino) {
+      const casinoQuery = { userId: { $in: userIdStrings } };
+      filterByDate(casinoQuery, 'createdAt');
+
+      if (selectedVoid === 'unsettel') {
+        casinoQuery.win_amount = 0;
+      } else if (selectedVoid === 'settel') {
+        casinoQuery.change = { $ne: 0 };
+      }
+
+      const [rows, totalCount] = await Promise.all([
+        CasinoBetHistory.find(casinoQuery)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limitNum)
+          .lean(),
+        CasinoBetHistory.countDocuments(casinoQuery),
+      ]);
+
+      const data = rows.map((row) => ({
+        _id: row._id,
+        userId: row.userId,
+        userName: row.userName,
+        gameName: 'Casino Game',
+        eventName: row.providerRaw?.game_name || row.game_uid || 'Casino',
+        marketName: 'Casino',
+        teamName: row.game_uid || '-',
+        subtype: row.providerRaw?.provider || 'awc',
+        otype: row.providerRaw?.type || 'casino',
+        xValue: row.providerRaw?.odds || 0,
+        price: row.bet_amount || 0,
+        liability: row.bet_amount || 0,
+        resultAmount: row.change || 0,
+        status: selectedVoid === 'settel' ? 1 : 0,
+        betType: 'casino',
+        ip: row.providerRaw?.ip || '-',
+        createdAt: row.createdAt,
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data,
+        totalPages: Math.ceil(totalCount / limitNum),
+      });
+    }
+
+    const sportsQuery = { userId: { $in: userIdStrings } };
+    filterByDate(sportsQuery, 'createdAt');
+
+    if (selectedGame) {
+      const selectedGameTrimmed = String(selectedGame).trim();
+      const normalized = selectedGameTrimmed.replace(/\s*Game$/i, '').trim();
+      const gameCandidates = Array.from(
+        new Set([
+          selectedGame,
+          selectedGameTrimmed,
+          `${selectedGameTrimmed} `,
+          normalized,
+        ])
+      ).filter(Boolean);
+
+      sportsQuery.gameName = { $in: gameCandidates };
+    }
+
+    if (selectedVoid === 'settel') {
+      sportsQuery.status = { $ne: 0 };
+    } else if (selectedVoid === 'void') {
+      sportsQuery.status = 3;
+    } else if (selectedVoid === 'unsettel') {
+      sportsQuery.status = 0;
+    }
+
+    const [rows, totalCount] = await Promise.all([
+      betHistoryModel
+        .find(sportsQuery)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      betHistoryModel.countDocuments(sportsQuery),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: rows,
+      totalPages: Math.ceil(totalCount / limitNum),
+    });
+  } catch (error) {
+    console.error('Error fetching live downline bets:', error);
     return res
       .status(500)
       .json({ success: false, message: 'Server error', error: error.message });
@@ -2668,6 +2822,176 @@ export const getUserCompleteInfo = async (req, res) => {
       success: false,
       message: "Server error while fetching user information",
       error: error.message
+    });
+  }
+};
+
+export const getAllUsersIncludingSubAdmins = async (req, res) => {
+  try {
+    console.log("📡 getAllUsersIncludingSubAdmins called - Only Downlines");
+
+    const { page = 1, limit = 10, searchQuery = "" } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
+    // ✅ 1. Fetch logged-in user
+    const loggedInUser = await SubAdmin.findById(req.id).lean();
+    if (!loggedInUser) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
+
+    console.log("👤 Logged-in user:", loggedInUser.userName, "Role:", loggedInUser.role, "Code:", loggedInUser.code);
+
+    // ✅ 2. Recursive helper to fetch ALL nested downlines
+    const getAllDownlines = async (inviteCode) => {
+      const directDownlines = await SubAdmin.find({ 
+        invite: inviteCode, 
+        status: { $ne: "delete" } 
+      }).select("_id code").lean();
+      
+      let allDownlineIds = [...directDownlines.map((u) => u._id)];
+
+      // Recursively find ALL sub-downlines
+      for (const downline of directDownlines) {
+        const subDownlineIds = await getAllDownlines(downline.code);
+        allDownlineIds = [...allDownlineIds, ...subDownlineIds];
+      }
+
+      return allDownlineIds;
+    };
+
+    // ✅ 3. Sirf logged-in user ke PURE downlines (self include nahi)
+    const downlineIds = await getAllDownlines(loggedInUser.code);
+    
+    console.log(`📊 Total downlines found: ${downlineIds.length} for user: ${loggedInUser.userName}`);
+
+    if (downlineIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No downline users found",
+        data: [],
+        pagination: {
+          totalUsers: 0,
+          totalPages: 0,
+          currentPage: pageNum,
+          hasNext: false,
+          hasPrev: false
+        },
+        loggedInUser: {
+          userName: loggedInUser.userName,
+          role: loggedInUser.role,
+          code: loggedInUser.code
+        }
+      });
+    }
+
+    // ✅ 4. Build filter - sirf downlines ke liye
+    let filter = { 
+      _id: { $in: downlineIds }
+    };
+
+    // ✅ 5. Apply search filter if provided
+    if (searchQuery && searchQuery.trim() !== "") {
+      filter.$or = [
+        { userName: { $regex: searchQuery.trim(), $options: "i" } },
+        { name: { $regex: searchQuery.trim(), $options: "i" } }
+      ];
+    }
+
+    // ✅ 6. Fetch paginated downline users
+    const downlineUsers = await SubAdmin.find(filter)
+      .select('-password -masterPassword -sessionToken')
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .lean();
+
+    const roleKeys = [
+      "superadmin",
+      "admin",
+      "subadmin",
+      "seniorSuper",
+      "superAgent",
+      "agent",
+      "user",
+    ];
+
+    const codeUserCache = new Map();
+
+    const getUserByCode = async (code) => {
+      if (!code) return null;
+      if (codeUserCache.has(code)) return codeUserCache.get(code);
+
+      const userByCode = await SubAdmin.findOne({ code })
+        .select("userName role invite code")
+        .lean();
+      codeUserCache.set(code, userByCode || null);
+      return userByCode || null;
+    };
+
+    const usersWithHierarchy = await Promise.all(
+      downlineUsers.map(async (user) => {
+        const hierarchy = roleKeys.reduce((acc, key) => {
+          acc[key] = "-";
+          return acc;
+        }, {});
+
+        let currentNode = {
+          userName: user.userName,
+          role: user.role,
+          invite: user.invite,
+        };
+
+        while (currentNode) {
+          if (
+            currentNode.role &&
+            Object.prototype.hasOwnProperty.call(hierarchy, currentNode.role)
+          ) {
+            hierarchy[currentNode.role] = currentNode.userName || "-";
+          }
+
+          if (!currentNode.invite) break;
+          currentNode = await getUserByCode(currentNode.invite);
+        }
+
+        return {
+          ...user,
+          hierarchy,
+        };
+      })
+    );
+
+    // ✅ 7. Get total count
+    const totalUsers = await SubAdmin.countDocuments(filter);
+
+    return res.status(200).json({
+      success: true,
+      message: `All downline users retrieved successfully`,
+      data: usersWithHierarchy,
+      pagination: {
+        totalUsers,
+        totalPages: Math.ceil(totalUsers / limitNum),
+        currentPage: pageNum,
+        hasNext: pageNum < Math.ceil(totalUsers / limitNum),
+        hasPrev: pageNum > 1
+      },
+      loggedInUser: {
+        userName: loggedInUser.userName,
+        role: loggedInUser.role,
+        code: loggedInUser.code,
+        totalDownlines: downlineIds.length
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Error in getAllUsersIncludingSubAdmins:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      details: error.message,
     });
   }
 };

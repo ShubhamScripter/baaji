@@ -122,8 +122,16 @@ function BetListTable({ bettingData }) {
                 <td className="px-2 py-2">{bet.odds}</td>
                 <td className="px-2 py-2">{bet.stake}</td>
                 <td className="px-2 py-2">{bet.liability}</td>
-                <td className="px-2 py-2">
-                  <span>{formatTwoDecimals(bet.profitLoss)}</span>
+                <td
+                  className={`px-2 py-2 ${
+                    Number(bet.profitLoss) < 0 ? "text-[#dc3545]" : "text-[#198754]"
+                  }`}
+                >
+                  <span>
+                    {Number(bet.profitLoss) < 0
+                      ? `(${formatTwoDecimals(Math.abs(Number(bet.profitLoss)))})`
+                      : formatTwoDecimals(bet.profitLoss)}
+                  </span>
                 </td>
               </tr>
             ))

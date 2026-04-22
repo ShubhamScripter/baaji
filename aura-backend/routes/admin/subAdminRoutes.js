@@ -33,7 +33,9 @@ import {
   userSetting,
   withdrowalAndDeposite,
   getDuplicateIPUsers,
+  getLiveDownlineBets,
   getUserCompleteInfo,
+  getAllUsersIncludingSubAdmins,
 } from '../../controllers/admin/subAdminController.js';
 import { adminAuthMiddleware } from '../../middleware/authMiddleware.js';
 
@@ -90,7 +92,9 @@ router.get(
   adminAuthMiddleware,
   getUserTransactionHistory
 );
+router.get("/users-including-subadmins",adminAuthMiddleware, getAllUsersIncludingSubAdmins);
 router.post('/get/all-bet-list', adminAuthMiddleware, getAllDownlineBets);
+router.post('/get/live-bet-list', adminAuthMiddleware, getLiveDownlineBets);
 router.get('/get/bet-perents/:id', adminAuthMiddleware, parentsDetails);
 router.patch('/gamelock/:id', adminAuthMiddleware, updateGameLock);
 router.get(

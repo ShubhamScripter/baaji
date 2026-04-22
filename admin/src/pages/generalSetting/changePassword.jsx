@@ -95,7 +95,7 @@ function ChangePassword({ onClose, userId }) {
               <input
                 type="password"
                 name="oldPassword"
-                placeholder="Enter Old Password"
+                placeholder="Enter Your Current Password"
                 className="p-2 rounded border border-[#aaa] shadow-[inset_0px_2px_0px_0px_rgba(0,0,0,0.1)] outline-none flex-1"
                 value={formData.oldPassword}
                 onChange={handleChange}

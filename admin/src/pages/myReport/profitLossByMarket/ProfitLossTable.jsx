@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 const toNumber = (value) => parseFloat(value.toString().replace(/,/g, "") || 0);
+const getAmountClass = (value) =>
+  toNumber(value) >= 0 ? "text-green-600" : "text-red-600";
 
 const ProfitLossTable = ({matchesData}) => {
-  const navigate=useNavigate()
+  const navigate = useNavigate();
   const [expandedRows, setExpandedRows] = useState({});
 
   const toggleRow = (id) => {
@@ -55,33 +57,54 @@ const ProfitLossTable = ({matchesData}) => {
                   Odds ▸ {match.title}
                 </td>
                 <td className="p-2">{match.stake}</td>
-                <td className="p-2 text-green-600">{match.downline}</td>
-                <td className="p-2 text-red-600">{match.player}</td>
+                <td className={`p-2 ${getAmountClass(match.downline)}`}>{match.downline}</td>
+                <td className={`p-2 ${getAmountClass(match.player)}`}>{match.player}</td>
                 <td className="p-2">{match.comm}</td>
-                <td className="p-2">{match.upline}</td>
+                <td className={`p-2 ${getAmountClass(match.upline)}`}>{match.upline}</td>
                 <td className="p-2"></td>
               </tr>
 
               {expandedRows[match.id] &&
-                match.children.map((child, i) => (
-                  <tr key={i} className="bg-[#f2f2f2] text-gray-700 border-t">
-                    <td className="p-2 pl-10">{child.label}</td>
-                    <td className="p-2">{child.stake}</td>
-                    <td className="p-2 text-green-600">{child.downline}</td>
-                    <td className="p-2 text-red-600">{child.player}</td>
-                    <td className="p-2">{child.comm}</td>
-                    <td className="p-2">{child.upline}</td>
-                    <td className="p-2">
-                      <button 
-                        className="bg-gray-400 border border-gray-500 px-2 py-1 rounded cursor-not-allowed text-gray-600 font-[700] text-xs"
-                        disabled
-                        title="Show Bets feature is currently disabled"
-                      >
-                        Show Bets
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                match.children.map((child, i) => {
+                  const hasBets = Array.isArray(child.bets) && child.bets.length > 0;
+
+                  return (
+                    <React.Fragment key={`${match.id}-${i}`}>
+                      <tr className="bg-[#f2f2f2] text-gray-700 border-t">
+                        <td className="p-2 pl-10">{child.label}</td>
+                        <td className="p-2">{child.stake}</td>
+                        <td className={`p-2 ${getAmountClass(child.downline)}`}>{child.downline}</td>
+                        <td className={`p-2 ${getAmountClass(child.player)}`}>{child.player}</td>
+                        <td className="p-2">{child.comm}</td>
+                        <td className={`p-2 ${getAmountClass(child.upline)}`}>{child.upline}</td>
+                        <td className="p-2">
+                          <button
+                            className={`px-2 py-1 rounded font-[700] text-xs ${
+                              hasBets
+                                ? "bg-[#ffcc2f] border border-[#cb8009] text-[#333] hover:bg-[#f3bb00]"
+                                : "bg-gray-400 border border-gray-500 cursor-not-allowed text-gray-600"
+                            }`}
+                            disabled={!hasBets}
+                            onClick={() =>
+                              hasBets &&
+                              navigate("/match-market-bets", {
+                                state: {
+                                  bets: child.bets,
+                                  sectionLabel: child.label,
+                                  eventName: match.title,
+                                },
+                              })
+                            }
+                            type="button"
+                            title={hasBets ? "Show section bets" : "No bets available"}
+                          >
+                            Show Bets
+                          </button>
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
             </React.Fragment>
           ))}
 
@@ -99,10 +122,10 @@ const ProfitLossTable = ({matchesData}) => {
             <tr className="bg-[#e4e4e4] font-bold text-[#333] border-y border-y-[#7e97a7]">
             <td className="p-2">Total</td>
             <td className="p-2">{total.stake.toFixed(2)}</td>
-            <td className="p-2 text-green-600">{total.downline.toFixed(2)}</td>
-            <td className="p-2 text-red-600">{total.player.toFixed(2)}</td>
+            <td className={`p-2 ${getAmountClass(total.downline.toFixed(2))}`}>{total.downline.toFixed(2)}</td>
+            <td className={`p-2 ${getAmountClass(total.player.toFixed(2))}`}>{total.player.toFixed(2)}</td>
             <td className="p-2">{total.comm.toFixed(2)}</td>
-            <td className="p-2">{total.upline.toFixed(2)}</td>
+            <td className={`p-2 ${getAmountClass(total.upline.toFixed(2))}`}>{total.upline.toFixed(2)}</td>
             <td className="p-2"></td>
           </tr>
           )}

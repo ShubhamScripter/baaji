@@ -216,6 +216,7 @@ function SubAdmin() {
                 <th className="px-2 py-2">International Casino P/L</th>
                 <th className="px-2 py-2">Comm.</th>
                 <th className="px-2 py-2">Upline/Total P/L</th>
+                <th className="px-2 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -245,12 +246,30 @@ function SubAdmin() {
                   <td className={`px-2 py-2 ${row.uplinePL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
                     {formatNumber(row.uplinePL)}
                   </td>
+                  <td className="px-2 py-2">
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded font-[700] text-xs bg-[#ffcc2f] border border-[#cb8009] text-[#333] hover:bg-[#f3bb00]"
+                      onClick={() =>
+                        navigate("/ACdownlinesportspl/bets", {
+                          state: {
+                            targetUserId: row.userId,
+                            targetUserName: row.uid,
+                            startDate,
+                            endDate,
+                          },
+                        })
+                      }
+                    >
+                      Show Bets
+                    </button>
+                  </td>
                 </tr>
               ))}
               {data.length === 0 ? (
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="7"
                     className="text-center py-4 text-[#3b5160] bg-[#0000000d] border-y border-[#7e97a7]"
                   >
                     You have no bets in this time period.
@@ -270,6 +289,7 @@ function SubAdmin() {
                   <td className={`px-2 py-2 ${totals.uplinePL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
                     {formatNumber(totals.uplinePL)}
                   </td>
+                  <td className="px-2 py-2"></td>
                 </tr>
               )}
             </tbody>

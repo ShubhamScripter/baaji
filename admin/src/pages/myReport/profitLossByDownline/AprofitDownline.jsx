@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
 import axiosInstance from "../../../utils/axiosInstance";
 
 // Sample JSON data (fallback)
@@ -16,9 +15,9 @@ const reportData = [
 ];
 
 function AprofitDownline() {
-  const navigate = useNavigate();
   const [data, setData] = useState(reportData);
   const [loading, setLoading] = useState(false);
+  const [drillStack, setDrillStack] = useState([]);
   const [filters, setFilters] = useState({
     page: 1,
     limit: 10,
@@ -46,31 +45,43 @@ function AprofitDownline() {
   const fetchProfitLossReports = async (params = {}) => {
     setLoading(true);
     try {
-      const queryParams = new URLSearchParams({
-        page: params.page || filters.page,
-        limit: params.limit || filters.limit,
-        gameName: params.gameName || filters.gameName,
-        eventName: params.eventName || filters.eventName,
-        marketName: params.marketName || filters.marketName,
-        userName: params.userName || filters.userName,
-        targetUserId: params.targetUserId || filters.targetUserId,
-        startDate: params.startDate || filters.startDate,
-        endDate: params.endDate || filters.endDate
+      const mergedFilters = { ...filters, ...params };
+      const queryPayload = {
+        page: mergedFilters.page,
+        limit: mergedFilters.limit,
+        gameName: mergedFilters.gameName,
+        eventName: mergedFilters.eventName,
+        marketName: mergedFilters.marketName,
+        userName: mergedFilters.userName,
+        targetUserId: mergedFilters.targetUserId,
+        startDate: mergedFilters.startDate,
+        endDate: mergedFilters.endDate
+      };
+      const queryParams = new URLSearchParams();
+      Object.entries(queryPayload).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          queryParams.append(key, value);
+        }
       });
 
-      const response = await axiosInstance.get(`/get/profit-loss-by-downline-reports?${queryParams}`);
+      const response = await axiosInstance.get(`/get/my-reports/by-downline?${queryParams}`);
       
       if (response.data.success) {
-        const { downlineProfitReport, pagination: paginationData, overallProfit: overallData } = response.data.data;
+        const {
+          downlineProfitReport = [],
+          downlinePagination: paginationData,
+          overallProfit: overallData
+        } = response.data.data || {};
         
         // Map API response to UI format
         const mappedData = downlineProfitReport.map(item => ({
           uid: item.userName,
           tag: item.role?.toUpperCase() || 'USER',
+          role: item.role || "user",
           stake: 0, // Not provided in API response
-          downlinePL: item.hierarchicalPL || 0,
+          downlinePL: item.netProfit || 0,
           playerPL: item.netProfit || 0,
-          commission: 0, // Not provided in API response
+          commission: item.creditReferenceProfitLoss || 0,
           uplinePL: item.netProfit || 0,
           // Additional fields from API
           userId: item.userId,
@@ -80,8 +91,17 @@ function AprofitDownline() {
         }));
 
         setData(mappedData);
-        setPagination(paginationData);
-        setOverallProfit(overallData);
+        setPagination(paginationData || {
+          page: 1,
+          limit: mergedFilters.limit || 10,
+          total: mappedData.length,
+          totalPages: 1
+        });
+        setOverallProfit(overallData || {
+          totalWin: 0,
+          totalLoss: 0,
+          netProfit: 0
+        });
       }
     } catch (error) {
       console.error('Error fetching profit/loss reports:', error);
@@ -130,6 +150,7 @@ function AprofitDownline() {
       startDate: '',
       endDate: ''
     });
+    setDrillStack([]);
     fetchProfitLossReports({
       page: 1,
       limit: 10,
@@ -160,11 +181,63 @@ function AprofitDownline() {
     fetchProfitLossReports(newFilters);
   };
 
+  const handleRowClick = (row) => {
+    if (!row?.userId || row.role === "user") return;
+
+    const nextTargetUserId = row.userId.toString();
+    const nextFilters = {
+      ...filters,
+      page: 1,
+      targetUserId: nextTargetUserId
+    };
+
+    setFilters(nextFilters);
+    setDrillStack((prev) => [
+      ...prev,
+      { userId: nextTargetUserId, uid: row.uid, role: row.role }
+    ]);
+    fetchProfitLossReports(nextFilters);
+  };
+
+  const handleDrillBack = (stackIndex) => {
+    const nextStack = stackIndex < 0 ? [] : drillStack.slice(0, stackIndex + 1);
+    const nextTargetUserId =
+      nextStack.length > 0 ? nextStack[nextStack.length - 1].userId : "";
+    const nextFilters = {
+      ...filters,
+      page: 1,
+      targetUserId: nextTargetUserId
+    };
+
+    setDrillStack(nextStack);
+    setFilters(nextFilters);
+    fetchProfitLossReports(nextFilters);
+  };
+
   return (
     <div className='mt-4 p-2 font-["Times_New_Roman"]'>
       <h2 className='text-[#243a48] text-[16px] font-[700] font-["Times_New_Roman"]'>
         Profit/Loss Report by Downline
       </h2>
+      <div className="mt-2 text-xs text-[#243a48]">
+        <span
+          className="underline cursor-pointer"
+          onClick={() => handleDrillBack(-1)}
+        >
+          Root
+        </span>
+        {drillStack.map((item, index) => (
+          <span key={`${item.userId}-${index}`}>
+            {" > "}
+            <span
+              className="underline cursor-pointer"
+              onClick={() => handleDrillBack(index)}
+            >
+              {item.uid}
+            </span>
+          </span>
+        ))}
+      </div>
       {/* Filter Section */}
       <div className="bg-[#e0e6e6] border-b border-b-[#7e97a7] p-2 mt-4">
         <div className="flex items-center gap-4 mt-3">
@@ -249,8 +322,8 @@ function AprofitDownline() {
                       {row.tag}
                     </span>{" "}
                     <span
-                      className="underline cursor-pointer"
-                      onClick={() => navigate(`/AprofitDownline/sub_admin/${row.userId}`)}
+                      className={`underline ${row.role !== "user" ? "cursor-pointer" : "cursor-default"}`}
+                      onClick={() => handleRowClick(row)}
                     >
                       {row.uid}
                     </span>

@@ -68,6 +68,7 @@ import CasinoProfitLoss from './pages/myReport/profitLossSportsWise/CasinoProfit
 
 import ACdownlinesportspl from './pages/myReport/AllCasinoProfitLoss/ACdownlinesportspl';
 import ACdownlinesportsplSubAdmin from './pages/myReport/AllCasinoProfitLoss/SubAdmin';
+import CasinoDownlineBets from './pages/myReport/AllCasinoProfitLoss/CasinoDownlineBets';
 import ACdownlinesportsplSeniorSuper from './pages/myReport/AllCasinoProfitLoss/SeniorSuper';
 import ACdownlinesportsplSuperAgent from './pages/myReport/AllCasinoProfitLoss/SuperAgent';
 import ACdownlinesportsplAgent from './pages/myReport/AllCasinoProfitLoss/Agent';
@@ -145,6 +146,7 @@ function App() {
             <Route path='/Adownlinesportspl' element={<CasinoProfitLoss />} />
             <Route path='/ACdownlinesportspl' element={<ACdownlinesportspl />} />
             <Route path='/ACdownlinesportspl/:role/:userId' element={<ACdownlinesportsplSubAdmin />} />
+            <Route path='/ACdownlinesportspl/bets' element={<CasinoDownlineBets />} />
             {/* <Route path='/ACdownlinesportspl/senior_super' element={<ACdownlinesportsplSeniorSuper />} />
             <Route path='/ACdownlinesportspl/super_agent' element={<ACdownlinesportsplSuperAgent />} />
             <Route path='/ACdownlinesportspl/agent' element={<ACdownlinesportsplAgent />} /> */}

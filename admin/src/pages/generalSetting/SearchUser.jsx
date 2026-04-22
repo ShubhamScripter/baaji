@@ -61,6 +61,7 @@ function SearchUser() {
     }
   };
   const firstUser = users[0];
+  const firstHierarchy = firstUser?.hierarchy || {};
   const submitPayment = async () => {
     if (!firstUser?._id) {
       const msg = "No user selected";
@@ -164,13 +165,13 @@ function SearchUser() {
           </thead>
           <tbody>
             <tr className="bg-white border-y border-y-[#7e97a7]">
-              <td className="px-2 py-2">-</td>
-              <td className="px-2 py-2">-</td>
-              <td className="px-2 py-2">-</td>
-              <td className="px-2 py-2">-</td>
-              <td className="px-2 py-2">-</td>
-              <td className="px-2 py-2">-</td>
-              <td className="px-2 py-2">{firstUser?.userName || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.superadmin || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.admin || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.subadmin || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.seniorSuper || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.superAgent || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.agent || "-"}</td>
+              <td className="px-2 py-2">{firstHierarchy.user || "-"}</td>
             </tr>
           </tbody>
         </table>

@@ -634,6 +634,218 @@ export const getMyReportByEvents = async (req, res) => {
   }
 };
 
+// New endpoint: event-wise report with Match Odds/Fancy grouping and individual bets
+export const getMyReportByEventsGrouped = async (req, res) => {
+  const { id } = req;
+  const {
+    startDate,
+    endDate,
+    page = 1,
+    limit = 10,
+    gameName,
+    eventName,
+    marketName,
+    userName,
+  } = req.query;
+
+  console.log("my req.query is:", req.query)
+
+  const pageNum = parseInt(page, 10);
+  const limitNum = parseInt(limit, 10);
+
+  try {
+    const admin = await SubAdmin.findById(id);
+    if (!admin) throw new Error('Admin not found');
+
+    if (admin.secret === 0) {
+      return res.status(200).json({ message: 'created successfully' });
+    }
+
+    const downlineUsers = await SubAdmin.aggregate([
+      { $match: { _id: admin._id } },
+      {
+        $graphLookup: {
+          from: 'subadmins',
+          startWith: '$code',
+          connectFromField: 'code',
+          connectToField: 'invite',
+          as: 'downline',
+          depthField: 'level',
+          restrictSearchWithMatch: { status: { $ne: 'delete' } },
+        },
+      },
+    ]);
+
+    const downlineIds =
+      downlineUsers[0]?.downline.map((user) => user._id.toString()) || [];
+    downlineIds.push(admin._id.toString());
+
+    console.log("my downlineIds is:", downlineIds)
+
+    const trimmedGameName = gameName ? gameName.trim() : '';
+    const trimmedEventName = eventName ? eventName.trim() : '';
+    const trimmedMarketName = marketName ? marketName.trim() : '';
+    const trimmedUserName = userName ? userName.trim() : '';
+
+    const betQuery = {
+      userId: { $in: downlineIds },
+      status: { $in: [1, 2] },
+    };
+
+    if (startDate && endDate) {
+      betQuery.date = getDateRangeUTC(startDate, endDate);
+    }
+    if (trimmedGameName) betQuery.gameName = trimmedGameName;
+    if (trimmedEventName) betQuery.eventName = trimmedEventName;
+    if (trimmedMarketName) betQuery.marketName = trimmedMarketName;
+    if (trimmedUserName) betQuery.userName = trimmedUserName;
+
+    const bets = await betHistoryModel.find(betQuery).sort({ createdAt: -1 }).lean();
+
+    console.log("my bet is:", bets)
+
+    const getSectionLabel = (bet) => {
+      const gameType = String(bet?.gameType || '').trim().toLowerCase();
+      const marketName = String(bet?.marketName || '').trim().toLowerCase();
+      const fancyTypes = ['normal', 'meter', 'line', 'ball', 'khado', 'fancy'];
+
+      // Exact sports split required by UI
+      if (gameType === 'match odds') return 'Match Odds';
+
+      // All fancy family game types should go under Fancy
+      if (fancyTypes.includes(gameType)) return 'Fancy';
+
+      // Explicit odds-like market names go to Match Odds
+      if (
+        marketName.includes('match odds') ||
+        marketName.includes('bookmaker') ||
+        marketName.includes('tied match') ||
+        marketName.includes('winner') ||
+        marketName.includes('toss')
+      ) {
+        return 'Match Odds';
+      }
+
+      // Default all non-casino sports bets to Match Odds bucket
+      if (gameType && gameType !== 'casino') return 'Match Odds';
+      return 'Fancy';
+    };
+
+    const updateProfit = (target, plChange) => {
+      if (plChange > 0) target.downlineWinAmount += plChange;
+      else if (plChange < 0) target.downlineLossAmount += Math.abs(plChange);
+      target.myProfit = target.downlineWinAmount - target.downlineLossAmount;
+    };
+
+    const eventMap = {};
+
+    for (const bet of bets) {
+      const eventKey = bet.eventName?.trim() || 'Unknown';
+      const sectionLabel = getSectionLabel(bet);
+      const plChange = bet.profitLossChange || 0;
+
+      if (!eventMap[eventKey]) {
+        eventMap[eventKey] = {
+          name: eventKey,
+          eventName: bet.eventName,
+          gameName: bet.gameName,
+          date: bet.createdAt || bet.date,
+          downlineWinAmount: 0,
+          downlineLossAmount: 0,
+          myProfit: 0,
+          _children: {},
+        };
+      }
+
+      if (!eventMap[eventKey]._children[sectionLabel]) {
+        eventMap[eventKey]._children[sectionLabel] = {
+          label: sectionLabel,
+          gameType: sectionLabel === 'Match Odds' ? 'Match Odds' : 'Normal',
+          marketName: bet.marketName,
+          downlineWinAmount: 0,
+          downlineLossAmount: 0,
+          myProfit: 0,
+          bets: [],
+        };
+      }
+
+      updateProfit(eventMap[eventKey], plChange);
+      updateProfit(eventMap[eventKey]._children[sectionLabel], plChange);
+
+      eventMap[eventKey]._children[sectionLabel].bets.push({
+        betId: bet.betId,
+        userName: bet.userName,
+        gameName: bet.gameName,
+        eventName: bet.eventName,
+        marketName: bet.marketName,
+        selection: bet.teamName,
+        gameType: bet.gameType,
+        stake: bet.betAmount || bet.xValue || 0,
+        odds: bet.price || 0,
+        type: bet.otype,
+        profitLoss: plChange,
+        status: bet.status,
+        ip: bet.ip || '',
+        date: bet.createdAt || bet.date,
+      });
+    }
+
+    const reportArray = Object.values(eventMap).map((eventReport) => {
+      const children = Object.values(eventReport._children).sort((a, b) => {
+        if (a.label === b.label) return 0;
+        if (a.label === 'Match Odds') return -1;
+        if (b.label === 'Match Odds') return 1;
+        return a.label.localeCompare(b.label);
+      });
+
+      return {
+        ...eventReport,
+        children,
+        _children: undefined,
+      };
+    });
+
+    const totalReports = reportArray.length;
+    const skip = (pageNum - 1) * limitNum;
+    const paginatedReport = reportArray.slice(skip, skip + limitNum);
+
+    const total = reportArray.reduce(
+      (acc, curr) => ({
+        name: 'Total',
+        downlineWinAmount: acc.downlineWinAmount + curr.downlineWinAmount,
+        downlineLossAmount: acc.downlineLossAmount + curr.downlineLossAmount,
+        myProfit: acc.myProfit + curr.myProfit,
+      }),
+      {
+        name: 'Total',
+        downlineWinAmount: 0,
+        downlineLossAmount: 0,
+        myProfit: 0,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        report: paginatedReport,
+        total,
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalReports,
+        totalPages: Math.ceil(totalReports / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('getMyReportByEventsGrouped error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 export const getGraphBackupData = async (req, res) => {
   const { id } = req;
   const { startDate, endDate } = req.query;

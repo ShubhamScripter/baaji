@@ -1,9 +1,7 @@
 import React,{useState, useEffect} from "react";
 import { GiPlainCircle } from "react-icons/gi";
 import MatchedTable from "./MatchedTable";
-import UnMatchedTable from "./UnMatchedTable";
-import { useDispatch, useSelector } from "react-redux";
-import { geAllBetHistory } from "../../store/subadminSlice";
+import axiosInstance from "../../utils/axiosInstance";
 const MatchedData = [
   {
     "plId": "fojol423",
@@ -217,16 +215,13 @@ const MatchedData = [
   }
 ]
 
-const UnMatchedData=[]
-
 function BetListLive() {
-    const dispatch = useDispatch();
-    const { bethistoryData } = useSelector((state) => state.subadmin);
     const [matchType, setmatchType] = useState("Cricket")
     const [matchSubType, setmatchSubType] = useState("BetFair")
     const [matchedData, setMatchedData] = useState(MatchedData);
 
     const mapMatchTypeToSelectedGame = (type) => {
+      if (type === "All") return "";
       if (type === "Cricket") return "Cricket Game";
       if (type === "Tennis") return "Tennis Game";
       if (type === "Soccer") return "Soccer Game";
@@ -236,39 +231,64 @@ function BetListLive() {
 
     const fetchData = () => {
       const selectedGame = mapMatchTypeToSelectedGame(matchType);
-      dispatch(
-        geAllBetHistory({
-          id: undefined,
-          page: 1,
-          limit: 100,
-          selectedGame,
-          selectedVoid: "unsettel",
+      const queryParams = new URLSearchParams({
+        page: 1,
+        limit: 100,
+        selectedGame,
+      });
+
+      axiosInstance
+        .post(`/get/live-bet-list?${queryParams.toString()}`, {})
+        .then((response) => {
+          const apiRows = response?.data?.data || [];
+          const mapped = apiRows
+            .filter((item) => Number(item?.status) === 0)
+            .map((item) => {
+              const stake = Number(item?.price ?? item?.stake ?? 0);
+              const odds = Number(item?.xValue ?? item?.odds ?? 0);
+              const betType = String(item?.otype || item?.type || "").toLowerCase();
+              const expectedProfit =
+                betType === "back"
+                  ? Math.max((odds - 1) * stake, 0)
+                  : -Math.max((odds - 1) * stake, 0);
+
+              return {
+                plId: item?.userName || item?.plId || "-",
+                betId: item?.betId || item?._id || "-",
+                date: item?.createdAt || item?.date || "-",
+                ip: item?.ip || "-",
+                market: item?.gameName || item?.marketName || "-",
+                match: item?.eventName || item?.match || "-",
+                selection: item?.teamName || item?.selection || "-",
+                type: item?.otype || item?.type || "-",
+                odds: Number.isFinite(odds) ? odds : "-",
+                stake: Number.isFinite(stake) ? stake : "-",
+                liability:
+                  betType === "lay"
+                    ? Math.max((odds - 1) * stake, 0)
+                    : Number.isFinite(stake)
+                    ? stake
+                    : "-",
+                profitLoss:
+                  Number(item?.status) === 0
+                    ? expectedProfit
+                    : item?.resultAmount ?? item?.profitLoss ?? "-",
+                casinoProvider: item?.subtype || "-",
+                casinoType: item?.type || item?.otype || "-",
+              };
+            });
+          setMatchedData(mapped);
         })
-      );
+        .catch((error) => {
+          console.error("Error fetching live bet list:", error);
+          setMatchedData([]);
+        });
     };
 
     useEffect(() => {
       fetchData();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [matchType]);
-
-    useEffect(() => {
-      const mapped = (bethistoryData || []).map((item) => ({
-        plId: item?.userName || item?.plId || "-",
-        betId: item?.betId || item?._id || "-",
-        date: item?.createdAt || item?.date || "-",
-        ip: item?.ip || "-",
-        market: item?.gameName || item?.marketName || "-",
-        match: item?.eventName || item?.match || "-",
-        selection: item?.teamName || item?.selection || "-",
-        type: item?.otype || item?.type || "-",
-        odds: item?.xValue ?? item?.odds ?? "-",
-        stake: item?.price ?? item?.stake ?? "-",
-        liability: item?.liability ?? item?.price ?? item?.stake ?? "-",
-        profitLoss: item?.resultAmount ?? item?.profitLoss ?? "-",
-      }));
-      if (bethistoryData) setMatchedData(mapped);
-    }, [bethistoryData]);
   return (
     <div className='mt-4 p-2 font-["Times_New_Roman"]'>
       <h2 className="text-[#243a48] text-[16px] font-[700]">Bet List Live</h2>
@@ -280,6 +300,14 @@ function BetListLive() {
         {/* Filters */}
       <div className="flex items-center gap-2 mt-2">
         <div className="flex gap-4">
+            <div className="flex gap-1 justify-center items-center">
+                <div id="All" className={`${matchType==="All" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
+                onClick={()=>setmatchType("All")}
+                >
+                   <GiPlainCircle className={`${matchType==="All" ?"text-white text-[8px]":"text-xs text-white"}`}/>
+                </div>
+                <label htmlFor="All">All</label>
+            </div>
             <div className="flex gap-1 justify-center items-center">
                 <div id="Cricket" className={`${matchType==="Cricket" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
                 onClick={()=>setmatchType("Cricket")}
@@ -463,10 +491,7 @@ function BetListLive() {
       </div>
       {/* Table Section */}
       <div className="mt-4">
-        <UnMatchedTable bettingData={UnMatchedData}/>
-      </div>
-      <div className="mt-4">
-        <MatchedTable bettingData={matchedData}/>
+        <MatchedTable bettingData={matchedData} matchType={matchType}/>
       </div>
     </div>
   )

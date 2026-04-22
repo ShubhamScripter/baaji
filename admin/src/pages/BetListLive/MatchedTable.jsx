@@ -35,7 +35,7 @@ function getPageNumbers(current, total, maxButtons = 7) {
   return pages;
 }
 
-function MatchedTable({ bettingData }) {
+function MatchedTable({ bettingData, matchType }) {
     const [currentPage, setCurrentPage] = useState(1);
           const rowsPerPage = 10;
 
@@ -72,6 +72,8 @@ function MatchedTable({ bettingData }) {
     });
   };
     
+  const isCasinoView = matchType === "Casino";
+
   return (
     <div className="">
       <div className='bg-[#3b5160] border-b border-b-[#7e97a7] text-[#fff] min-w-full pl-2 text-sm'>Matched</div>
@@ -85,16 +87,16 @@ function MatchedTable({ bettingData }) {
             <th className="px-2 py-2">Market</th>
             <th className="px-2 py-2">Selection</th>
             <th className="px-2 py-2">Type</th>
-            <th className="px-2 py-2">Odds req.</th>
             <th className="px-2 py-2">Stake</th>
-            <th className="px-2 py-2">Liability</th>
-            <th className="px-2 py-2">Profit/Loss</th>
+            {!isCasinoView && <th className="px-2 py-2">Odds req.</th>}
+            {!isCasinoView && <th className="px-2 py-2">Liability</th>}
+            {!isCasinoView && <th className="px-2 py-2">Profit/Loss</th>}
           </tr>
         </thead>
         <tbody>
           {bettingData.length === 0 ? (
             <tr>
-              <td colSpan="10" className="text-center py-4 text-[#3b5160] bg-[#0000000d] border-y border-[#7e97a7]">
+              <td colSpan={isCasinoView ? "8" : "11"} className="text-center py-4 text-[#3b5160] bg-[#0000000d] border-y border-[#7e97a7]">
                 You have no bets in this time period.
               </td>
             </tr>
@@ -103,7 +105,9 @@ function MatchedTable({ bettingData }) {
               <tr
                 key={index}
                 className={
-                  index % 2 === 0
+                  isCasinoView
+                    ? "bg-[#efb3c1] border-y border-[#d79aaa]"
+                    : index % 2 === 0
                     ? "bg-[#0000000d] border-y border-[#7e97a7]"
                     : "bg-[#fff] border-y border-[#7e97a7]"
                 }
@@ -115,17 +119,19 @@ function MatchedTable({ bettingData }) {
                 <td className="px-2 py-2">
                   {bet.market}
                   <span> ▸ </span>
-                  <strong>{bet.match}</strong>
-                  <span> ▸ </span>
+                  <span>{isCasinoView ? bet.casinoProvider : bet.match}</span>
+                  <span> ▸</span>
                 </td>
-                <td className="px-2 py-2">{bet.selection}</td>
-                <td className="px-2 py-2">{bet.type}</td>
-                <td className="px-2 py-2">{bet.odds}</td>
+                <td className="px-2 py-2">{isCasinoView ? <strong>{bet.match}</strong> : bet.selection}</td>
+                <td className="px-2 py-2">{isCasinoView ? bet.casinoType : bet.type}</td>
                 <td className="px-2 py-2">{bet.stake}</td>
-                <td className="px-2 py-2">{bet.liability}</td>
-                <td className="px-2 py-2">
-                  <span>{formatTwoDecimals(bet.profitLoss)}</span>
-                </td>
+                {!isCasinoView && <td className="px-2 py-2">{bet.odds}</td>}
+                {!isCasinoView && <td className="px-2 py-2">{bet.liability}</td>}
+                {!isCasinoView && (
+                  <td className="px-2 py-2">
+                    <span>{formatTwoDecimals(bet.profitLoss)}</span>
+                  </td>
+                )}
               </tr>
             ))
           )}

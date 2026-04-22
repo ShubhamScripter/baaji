@@ -1,8 +1,7 @@
 import React,{useState, useEffect} from "react";
 import { GiPlainCircle } from "react-icons/gi";
 import BetListTable from "./BetListTable";
-import { useDispatch, useSelector } from "react-redux";
-import { geAllBetHistory } from "../../store/subadminSlice";
+import axiosInstance from "../../utils/axiosInstance";
 
 const bettingDataSample = [
   {
@@ -218,8 +217,6 @@ const bettingDataSample = [
 ]
 
 function BetList() {
-    const dispatch = useDispatch();
-    const { bethistoryData } = useSelector((state) => state.subadmin);
     const [matchType, setmatchType] = useState("All")
     const [matchSubType, setmatchSubType] = useState("BetFair")
     const [betStatus, setBetStatus] = useState("Settled");
@@ -255,17 +252,45 @@ function BetList() {
     const fetchData = () => {
       const selectedGame = mapMatchTypeToSelectedGame(matchType);
       const selectedVoid = mapBetStatusToSelectedVoid(betStatus);
-      dispatch(
-        geAllBetHistory({
-          id: undefined,
-          page: 1,
-          limit: effectiveLimit(),
-          startDate: fromDate || undefined,
-          endDate: toDate || undefined,
-          selectedGame,
-          selectedVoid,
+
+      const queryParams = new URLSearchParams({
+        page: 1,
+        limit: effectiveLimit(),
+        selectedGame,
+        selectedVoid,
+      });
+
+      if (fromDate) queryParams.append("startDate", fromDate);
+      if (toDate) queryParams.append("endDate", toDate);
+
+      axiosInstance
+        .post(`/get/live-bet-list?${queryParams.toString()}`, {})
+        .then((response) => {
+          const rows = response?.data?.data || [];
+          const mapped = rows.map((item) => ({
+            plId: item?.userName || item?.plId || "-",
+            betId: item?.betId || item?._id || "-",
+            date: item?.createdAt || item?.date || "-",
+            ip: item?.ip || "-",
+            market: item?.gameName || item?.marketName || "-",
+            match: item?.eventName || item?.match || "-",
+            selection: item?.teamName || item?.selection || "-",
+            type: item?.otype || item?.type || "-",
+            odds: item?.xValue ?? item?.odds ?? "-",
+            stake: item?.price ?? item?.stake ?? "-",
+            liability: item?.liability ?? item?.price ?? item?.stake ?? "-",
+            profitLoss:
+              item?.profitLossChange ??
+              item?.resultAmount ??
+              item?.profitLoss ??
+              0,
+          }));
+          setTableData(mapped);
         })
-      );
+        .catch((error) => {
+          console.error("Error fetching bet list:", error);
+          setTableData([]);
+        });
     };
 
     useEffect(() => {
@@ -279,26 +304,14 @@ function BetList() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [matchType, betStatus, txnCount, fromDate, toDate]);
 
-    useEffect(() => {
-      const mapped = (bethistoryData || []).map((item) => ({
-        plId: item?.userName || item?.plId || "-",
-        betId: item?.betId || item?._id || "-",
-        date: item?.createdAt || item?.date || "-",
-        ip: item?.ip || "-",
-        market: item?.gameName || item?.marketName || "-",
-        match: item?.eventName || item?.match || "-",
-        selection: item?.teamName || item?.selection || "-",
-        type: item?.otype || item?.type || "-",
-        odds: item?.xValue ?? item?.odds ?? "-",
-        stake: item?.price ?? item?.stake ?? "-",
-        liability: item?.liability ?? item?.price ?? item?.stake ?? "-",
-        profitLoss: item?.resultAmount ?? item?.profitLoss ?? "-",
-      }));
-      // Always show API result; do not fallback to sports sample when filters apply (e.g., Casino/date)
-      if (bethistoryData) {
-        setTableData(mapped);
-      }
-    }, [bethistoryData]);
+    const handleReset = () => {
+      setmatchType("All");
+      setmatchSubType("BetFair");
+      setBetStatus("Settled");
+      setTxnCount("100");
+      setFromDate("");
+      setToDate("");
+    };
   return (
     <div className='mt-4 p-2 font-["Times_New_Roman"]'>
       <h2 className="text-[#243a48] text-[16px] font-[700]">Bet List</h2>
@@ -472,7 +485,7 @@ function BetList() {
           <button className="border border-[#cb8009] text-xs font-[700] bg-[#ffcc2f] p-2 rounded-sm hover:bg-[#ffa00c] cursor-pointer" onClick={fetchData}>
             Search
           </button>
-          <button className="border border-[#bbb] text-xs font-[700] bg-[linear-gradient(180deg,_#fff,_#eee)] p-2 rounded-sm cursor-pointer">
+          <button className="border border-[#bbb] text-xs font-[700] bg-[linear-gradient(180deg,_#fff,_#eee)] p-2 rounded-sm cursor-pointer" onClick={handleReset}>
             Reset
           </button>
         </div>

@@ -107,6 +107,17 @@ const navData = [
     path: "/general-setting"
   },
   {
+    label: "Other",
+    icon: "FaEllipsisH",
+    children: [
+      {
+        label: "Search User",
+        icon: "FaSearch",
+        path: "/searchuser"
+      }
+    ]
+  },
+  {
     label: "Time Zone : GMT+6:00",
     icon: "FaClock"
   },
