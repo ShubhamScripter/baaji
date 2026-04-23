@@ -333,6 +333,7 @@ function Fancybet({ openBetSlip, fancy1Data, gameid, match }) {
                             selection: market.title,
                             odds: item.value,
                             xValue: item.odds,
+                            oname: i === 0 ? "lay1" : "back1",
                             otype: i === 0 ? "lay" : "back", // No = lay, Yes = back
                             gameId: gameid,
                             eventName: match,

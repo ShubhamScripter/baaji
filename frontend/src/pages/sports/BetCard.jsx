@@ -323,19 +323,31 @@ function BetCard({ odds, onClose, onBetDataChange }) {
     //   return;
     // }
 
+    const isFancyBet = ['Normal', 'meter', 'line', 'ball', 'khado'].includes(
+      odds?.gameType
+    );
+    const isBookmakerBet =
+      odds?.gameType === 'Bookmaker' || odds?.marketName === 'Bookmaker';
+
     const formData = {
       gameId: odds?.gameId,
       sid: odds?.sportSid ?? odds?.sportId ?? odds?.sport_id ?? 4,
       otype: odds?.otype || odds?.type, // back/lay
       price: numericStake,
-      xValue: parseFloat(betOdds),
+      // For fancy bets backend expects xValue as current size, not score/odds.
+      xValue: isFancyBet
+        ? parseFloat(odds?.xValue)
+        : isBookmakerBet
+        ? String(betOdds)
+        : parseFloat(betOdds),
       gameType: odds?.gameType || 'Match Odds',
       gameName: odds?.gameName || 'Cricket Game', // Use the gameName from odds prop
       teamName: odds?.selection,
       marketName: odds?.marketName || 'Match Odds',
       eventName: odds?.eventName,
       marketId: odds?.marketId,
-      fancyScore: odds?.fancyScore,
+      fancyScore: isBookmakerBet ? null : odds?.fancyScore,
+      oname: odds?.oname,
     };
 
     try {

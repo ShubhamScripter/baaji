@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { IoAlarmSharp } from "react-icons/io5";
 import { FaCalendar, FaCalendarAlt } from "react-icons/fa";
 import { HiTrophy } from "react-icons/hi2";
-import { ImShield } from "react-icons/im";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchCricketData, fetchCricketInplayData } from "../../features/sports/cricketSlice";
 import { fetchSoccerData, fetchSoccerInplayData } from "../../features/sports/soccerSlice";
@@ -43,7 +42,6 @@ const categories = [
   { name: "Today", icon: <FaCalendar size={35} /> },
   { name: "Tomorrow", icon: <FaCalendarAlt size={35} /> },
   { name: "League", icon: <HiTrophy size={35} /> },
-  { name: "Parlay", icon: <ImShield size={35} /> },
 ];
 
 function Main() {
@@ -103,8 +101,6 @@ function Main() {
     content = <Tomorrow data={filteredData} />;
   } else if (Filter === "League") {
     navigate('/leagues');
-  } else if (Filter === "Parlay") {
-    navigate('/sports');
   }
 
   return (

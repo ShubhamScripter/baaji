@@ -156,18 +156,38 @@ import s from '../../assets/icon/s.png';
 import y from '../../assets/icon/youtube.png'
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from "react-redux";
-import { fetchCricketData } from '../../features/sports/cricketSlice';
+import { fetchCricketData, fetchCricketInplayData } from '../../features/sports/cricketSlice';
 
-function All() {
+function All({ activeTab }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const { matches, loader, error } = useSelector((state) => state.cricket);
+  const { matches, inplayMatches, loader, error } = useSelector((state) => state.cricket);
   const [openIndexes, setOpenIndexes] = useState([0]);
   console.log("cricket matches",matches)
 
+  const sourceMatches = activeTab === "InPlay" ? inplayMatches : matches;
+
+  const filteredMatches = (Array.isArray(sourceMatches) ? sourceMatches : []).filter((match) => {
+    const matchDate = new Date(match.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isInplay = match.inplay === true || match.iplay === true;
+
+    if (activeTab === "InPlay") {
+      return isInplay;
+    } else if (activeTab === "Today") {
+      return matchDate.toDateString() === today.toDateString();
+    } else if (activeTab === "Tomorrow") {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      return matchDate.toDateString() === tomorrow.toDateString();
+    }
+    return true;
+  });
+
   // Group matches by title
-  const groupedMatches = matches?.reduce((acc, match) => {
+  const groupedMatches = filteredMatches.reduce((acc, match) => {
     if (!acc[match.title]) {
       acc[match.title] = [];
     }
@@ -190,6 +210,12 @@ function All() {
   useEffect(() => {
     dispatch(fetchCricketData());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (activeTab === "InPlay") {
+      dispatch(fetchCricketInplayData());
+    }
+  }, [activeTab, dispatch]);
 
   const handleClick = (match) => {
     navigate(`/sports/fullmarket/${match.match}/${match.id}`);

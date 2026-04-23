@@ -22,7 +22,6 @@ const toApiMarketName = (name) => MARKET_NAME_TO_API[name] || name;
 
 import betHistoryModel from '../models/betHistoryModel.js';
 import betModel from '../models/betModel.js';
-import CasinoBetHistory from '../models/casinoBetHistory.model.js';
 import SubAdmin from '../models/subAdminModel.js';
 import TransactionHistory from '../models/transtionHistoryModel.js';
 import { getDateRangeUTC } from '../utils/dateUtils.js';
@@ -63,7 +62,8 @@ async function validateSportsMarket(
   xValue,
   otype,
   sid,
-  oname
+  oname,
+  gameType
 ) {
   return _validateSportsMarket(cachedData, {
     gameId,
@@ -74,6 +74,7 @@ async function validateSportsMarket(
     otype,
     sid,
     oname,
+    gameType,
   });
 }
 
@@ -808,7 +809,8 @@ const placeBet = async (req, res) => {
       xValue,
       otype,
       sid,
-      oname
+      oname,
+      gameType
     );
     if (!marketCheck.valid) {
       console.warn(
@@ -838,6 +840,8 @@ const placeBet = async (req, res) => {
       return res.status(200).json({ message: 'created successfully' });
     }
 
+    const marketMeta = marketCheck.marketMeta || {};
+
     // 1. Check uniqueness: existing bet with same gameId, eventName, marketName, userId, and status 0
     const uniqueKey = { gameId, eventName, marketName };
     const existingExact = await betModel.findOne(uniqueKey);
@@ -852,23 +856,57 @@ const placeBet = async (req, res) => {
     if (!existingExact) {
       market_id = Math.floor(10000000 + Math.random() * 90000000);
 
-      const meta = marketCheck.marketMeta || {};
-
       //Here we are using the external Api
       try {
-        await apiSendBetIncoming({
-          event_id: gameId,
-          event_name: eventName,
-          market_id: market_id,
-          market_name: toApiMarketName(marketName),
-          market_type: gameType,
-          client_ref: null,
-          sport_id: sid,
-          fancyId: null,
-          fancymid: meta.mid || null,
-          bevent_id: meta.beventId || null,
-          runners: meta.runners || [],
-        });
+        if (gameType === 'fancy1' || gameType === 'oddeven') {
+          // fancy1 and oddeven use the same request format as fancy (session) bets:
+          // no runners, carries fancyId + beventId instead.
+          let beventId = '';
+          try {
+            const matchListData = await apiFetchMatchList(Number(sid));
+            if (matchListData?.success && matchListData.data) {
+              const allMatches = [
+                ...(matchListData.data.t1 || []),
+                ...(matchListData.data.t2 || []),
+              ];
+              const matched = allMatches.find((m) => {
+                const matchId = String(m.beventId || m.oldgmid || m.gmid);
+                return matchId === String(gameId);
+              });
+              beventId = matched?.beventId ? String(matched.beventId) : '';
+            }
+          } catch (err) {
+            console.warn(
+              `[FANCY1 BET] Failed to fetch match list for beventId lookup:`,
+              err.message
+            );
+          }
+
+          await apiSendBetIncoming({
+            sport_id: sid,
+            sportName: (gameName || '').replace(/\s*game\s*$/i, ''),
+            event_id: marketMeta.gmid || gameId,
+            beventId,
+            event_name: eventName,
+            fancyId: marketMeta.fancyId ? String(marketMeta.fancyId) : null,
+            market_name: toApiMarketName(marketName),
+            fancyType: gameType,
+          });
+        } else {
+          await apiSendBetIncoming({
+            event_id: gameId,
+            event_name: eventName,
+            market_id: market_id,
+            market_name: toApiMarketName(marketName),
+            market_type: gameType,
+            client_ref: null,
+            sport_id: sid,
+            fancyId: null,
+            fancymid: marketMeta.mid || null,
+            bevent_id: marketMeta.beventId || null,
+            runners: marketMeta.runners || [],
+          });
+        }
       } catch (apiErr) {
         console.error(
           `[SPORTS BET] bet-incoming API failed for gameId=${gameId}:`,
@@ -892,6 +930,8 @@ const placeBet = async (req, res) => {
     // Calculate bet amount based on game type and otype
     switch (gameType) {
       case 'Match Odds':
+      case 'fancy1':
+      case 'oddeven':
       case 'Tied Match':
       case 'Winner':
       case 'OVER_UNDER_05':
@@ -919,28 +959,27 @@ const placeBet = async (req, res) => {
 
     // BET PLACEMENT - EXPOSURE CALCULATION
 
-    // STEP 1: Check for existing pending bet FIRST (before balance check)
-    // Exclude cashed-out bets — they are locked and must not be merged/offset
-    const existingBet = await betModel.findOne({
+    // fancy1 and oddeven: each row is an independent market (per-proposition
+    // marketName). Scope lookups by marketName so different propositions in
+    // the same match don't collide and merge into one bet record.
+    const marketScopedQuery = {
       userId: id,
       gameId,
       gameType,
       status: 0,
       isCashedOut: { $ne: true },
-    });
+    };
+    if (gameType === 'fancy1' || gameType === 'oddeven') {
+      marketScopedQuery.marketName = marketName;
+    }
 
-    // STEP 2: Calculate effective available balance using scenario-based logic
-    // Get all existing bets in this market (exclude cashed-out — their exposure is handled separately)
-    const marketBets = await betModel.find({
-      userId: id,
-      gameId,
-      gameType,
-      status: 0,
-      isCashedOut: { $ne: true },
-    });
+    const existingBetQuery =
+      gameType === 'oddeven'
+        ? { ...marketScopedQuery, teamName }
+        : marketScopedQuery;
+    const existingBet = await betModel.findOne(existingBetQuery);
+    const marketBets = await betModel.find(marketScopedQuery);
 
-    // Calculate effective balance based on market position
-    // Using new method that includes potential profit from the new bet itself
     const validation = validateBetWithNewBetOffset(
       user.avbalance,
       user.balance,
@@ -1128,10 +1167,23 @@ const placeBet = async (req, res) => {
         marketName,
         gameName,
         teamName,
+        fancyId:
+          gameType === 'fancy1' || gameType === 'oddeven'
+            ? String(marketMeta.fancyId || '') || null
+            : null,
         placementType: 'new',
         mergeCount: 1,
       });
       user.avbalance -= p;
+    }
+
+    if (
+      existingBet &&
+      (gameType === 'fancy1' || gameType === 'oddeven') &&
+      marketMeta.fancyId &&
+      !existingBet.fancyId
+    ) {
+      existingBet.fancyId = String(marketMeta.fancyId);
     }
 
     // STEP 2: Save the bet to database first
@@ -1260,7 +1312,8 @@ export const placeFancyBet = async (req, res) => {
       otype,
       sid,
       fancyScore,
-      oname
+      oname,
+      gameType
     );
     if (!fancyCheck.valid) {
       console.warn(
@@ -2804,6 +2857,13 @@ export const updateFancyBetResult = async (req, res) => {
       { gameType: 'line', marketName: 'Tied Match' },
       { gameType: 'ball', marketName: 'Bookmaker' },
       { gameType: 'khado', marketName: 'Bookmaker' },
+      // fancy1: yes/no outcome markets. Reuses the fancyresult endpoint (has
+      // fancyId from placement) but settles on a raw "1"/"0" flag instead of
+      // a score threshold.
+      { gameType: 'fancy1', marketName: 'fancy1' },
+      // oddeven: parity-based settlement. Reuses fancyresult; result is a
+      // number whose parity determines the winning side ("Odd"/"Even").
+      { gameType: 'oddeven', marketName: 'oddeven' },
     ];
 
     let totalBetsProcessed = 0;
@@ -2911,6 +2971,22 @@ export const updateFancyBetResult = async (req, res) => {
             if (isVoid) {
               settlementResult =
                 await fancyBetSettlementService.voidFancyBet(bet);
+            } else if (bet.gameType === 'fancy1') {
+              // fancy1 uses yes/no comparison, not score threshold
+              settlementResult =
+                await fancyBetSettlementService.settleFancy1Bet(
+                  bet,
+                  user,
+                  score
+                );
+            } else if (bet.gameType === 'oddeven') {
+              // oddeven compares teamName ("Odd"/"Even") to parity of result
+              settlementResult =
+                await fancyBetSettlementService.settleOddEvenBet(
+                  bet,
+                  user,
+                  score
+                );
             } else {
               settlementResult = await fancyBetSettlementService.settleFancyBet(
                 bet,
@@ -2968,15 +3044,36 @@ export const updateFancyBetResult = async (req, res) => {
                 );
                 console.log(` [FANCY BETHISTORY] Voided: ${historyRecord._id}`);
               } else {
-                // Fancy bet settlement - use score-based comparison
-                const actualScore = parseFloat(bet.betResult || '0');
-                const fancyScore = parseFloat(historyRecord.fancyScore || '0');
-
-                // Back wins if score >= fancyScore, Lay wins if score < fancyScore
-                const isWin =
-                  historyRecord.otype === 'back'
-                    ? actualScore >= fancyScore
-                    : actualScore < fancyScore;
+                // Fancy bet settlement - branch on gameType
+                // fancy1:  raw "1"/"0" yes/no flag (back wins on "1")
+                // oddeven: teamName ("Odd"/"Even") vs winningSide stored in
+                //          betResult by settleOddEvenBet
+                // others:  score threshold (back wins if score >= fancyScore)
+                let isWin;
+                if (bet.gameType === 'fancy1') {
+                  const yesHappened =
+                    String(bet.betResult || '').trim() === '1';
+                  isWin =
+                    historyRecord.otype === 'back' ? yesHappened : !yesHappened;
+                } else if (bet.gameType === 'oddeven') {
+                  const winningSide = (bet.betResult || '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+                  const historySide = (historyRecord.teamName || '')
+                    .trim()
+                    .toLowerCase();
+                  isWin = historySide === winningSide;
+                } else {
+                  const actualScore = parseFloat(bet.betResult || '0');
+                  const fancyScore = parseFloat(
+                    historyRecord.fancyScore || '0'
+                  );
+                  isWin =
+                    historyRecord.otype === 'back'
+                      ? actualScore >= fancyScore
+                      : actualScore < fancyScore;
+                }
 
                 let historyStatus;
                 let historyResultAmount;
@@ -3692,6 +3789,8 @@ export const getPendingBetsAmounts = async (req, res) => {
     const betTypes = [
       { gameType: 'Toss', marketName: 'Toss', category: 'sports' },
       { gameType: 'Match Odds', marketName: 'Match Odds', category: 'sports' },
+      { gameType: 'fancy1', marketName: 'fancy1', category: 'sports' },
+      { gameType: 'oddeven', marketName: 'oddeven', category: 'sports' },
       { gameType: 'Tied Match', marketName: 'Tied Match', category: 'sports' },
       { gameType: 'Bookmaker', marketName: 'Bookmaker', category: 'sports' },
       { gameType: 'Normal', marketName: 'Toss', category: 'sports' },
@@ -3756,14 +3855,19 @@ export const getPendingBetsAmounts = async (req, res) => {
       cashoutPLByGameType[gt] += b.cashoutValue || 0;
     }
 
-    // Group active bets by gameType + teamName
+    // Group active bets by gameType + teamName (+ marketName for oddeven,
+    // since the same teamName "Odd"/"Even" recurs across propositions).
     const grouped = {};
 
     for (const bet of activeBets) {
-      const key = `${bet.gameType}|${bet.teamName}`;
+      const key =
+        bet.gameType === 'oddeven'
+          ? `${bet.gameType}|${bet.marketName}|${bet.teamName}`
+          : `${bet.gameType}|${bet.teamName}`;
       if (!grouped[key]) {
         grouped[key] = {
           gameType: bet.gameType,
+          marketName: bet.marketName,
           teamName: bet.teamName,
           otype: bet.otype,
           totalBetAmount: 0,
@@ -3869,63 +3973,63 @@ export const getFancyMasterBook = async (req, res) => {
   }
 };
 
-export const getBetHistory = async (req, res) => {
-  const { id } = req;
-  const {
-    page = 1,
-    limit = 10,
-    startDate,
-    endDate,
-    selectedGame,
-    selectedVoid,
-  } = req.query;
+// export const getBetHistory = async (req, res) => {
+//   const { id } = req;
+//   const {
+//     page = 1,
+//     limit = 10,
+//     startDate,
+//     endDate,
+//     selectedGame,
+//     selectedVoid,
+//   } = req.query;
 
-  try {
-    const query = { userId: id, status: 0 };
+//   try {
+//     const query = { userId: id, status: 0 };
 
-    // Filter by date if both start and end dates are provided
-    if (startDate && endDate) {
-      query.createdAt = getDateRangeUTC(startDate, endDate);
-    }
+//     // Filter by date if both start and end dates are provided
+//     if (startDate && endDate) {
+//       query.createdAt = getDateRangeUTC(startDate, endDate);
+//     }
 
-    // Filter by selectedGame if provided
-    if (selectedGame) {
-      query.gameName = selectedGame;
-    }
+//     // Filter by selectedGame if provided
+//     if (selectedGame) {
+//       query.gameName = selectedGame;
+//     }
 
-    // Filter by selectedVoid if provided
-    if (selectedVoid === 'settel') {
-      query.status = { $ne: 0 };
-      query.betResult = { $not: { $regex: /^VOID$/i } };
-    } else if (selectedVoid === 'void') {
-      query.status = 2;
-      query.betResult = { $regex: /^VOID$/i };
-    } else if (selectedVoid === 'unsettel') {
-      query.status = 0;
-    }
+//     // Filter by selectedVoid if provided
+//     if (selectedVoid === 'settel') {
+//       query.status = { $ne: 0 };
+//       query.betResult = { $not: { $regex: /^VOID$/i } };
+//     } else if (selectedVoid === 'void') {
+//       query.status = 2;
+//       query.betResult = { $regex: /^VOID$/i };
+//     } else if (selectedVoid === 'unsettel') {
+//       query.status = 0;
+//     }
 
-    const bets = await betHistoryModel
-      .find(query)
-      .sort({ date: -1 }) // most recent first
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+//     const bets = await betHistoryModel
+//       .find(query)
+//       .sort({ date: -1 }) // most recent first
+//       .skip((page - 1) * limit)
+//       .limit(parseInt(limit));
 
-    const total = await betHistoryModel.countDocuments(query);
+//     const total = await betHistoryModel.countDocuments(query);
 
-    res.status(200).json({
-      success: true,
-      data: bets,
-      pagination: {
-        total,
-        page: parseInt(page),
-        pages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching bet history:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+//     res.status(200).json({
+//       success: true,
+//       data: bets,
+//       pagination: {
+//         total,
+//         page: parseInt(page),
+//         pages: Math.ceil(total / limit),
+//       },
+//     });
+//   } catch (error) {
+//     console.error('Error fetching bet history:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
 
 // export const getProfitlossHistory = async (req, res) => {
 //   const { id } = req; // User ID from auth middleware
@@ -4111,6 +4215,70 @@ export const getBetHistory = async (req, res) => {
 //   }
 // };
 
+export const getBetHistory = async (req, res) => {
+  const { id } = req;
+  const {
+    page = 1,
+    limit = 10,
+    startDate,
+    endDate,
+    selectedGame,
+    selectedVoid,
+  } = req.query;
+
+  try {
+    const query = { userId: id, status: 0 };
+
+    // Filter by date if both start and end dates are provided
+    if (startDate && endDate) {
+      query.createdAt = getDateRangeUTC(startDate, endDate);
+    }
+
+    // Filter by selectedGame if provided
+    if (selectedGame) {
+      // Account Statement sends "Sport" to represent all sports.
+      if (selectedGame === 'Sport') {
+        query.gameName = {
+          $in: ['Cricket Game', 'Soccer Game', 'Tennis Game'],
+        };
+      } else {
+        query.gameName = selectedGame;
+      }
+    }
+
+    // Filter by selectedVoid if provided
+    if (selectedVoid === 'settel') {
+      query.status = { $ne: 0 };
+      query.betResult = { $not: { $regex: /^VOID$/i } };
+    } else if (selectedVoid === 'void') {
+      query.status = 2;
+      query.betResult = { $regex: /^VOID$/i };
+    } else if (selectedVoid === 'unsettel') {
+      query.status = 0;
+    }
+
+    const bets = await betHistoryModel
+      .find(query)
+      .sort({ date: -1 }) // most recent first
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await betHistoryModel.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: bets,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching bet history:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 export const getProfitlossHistory = async (req, res) => {
   const { id } = req; // User ID from auth middleware
   const {
@@ -4125,20 +4293,15 @@ export const getProfitlossHistory = async (req, res) => {
   } = req.query;
 
   try {
-    // 1. Validate and parse inputs
     const pageNum = Math.max(parseInt(page), 1);
     const limitNum = Math.max(parseInt(limit), 1);
     const skip = (pageNum - 1) * limitNum;
 
-    // 2. Build the base query for non-casino bets (sports/fancy)
     const betQuery = {
       userId: id,
-      status: { $in: [1, 2] }, // Only settled bets (1=win, 2=loss)
-      betType: { $ne: 'casino' }, // Exclude casino bets from betHistoryModel
+      status: { $in: [1, 2] },
     };
 
-    // 3. Apply filters
-    // Date filters
     if (startDate && endDate) {
       betQuery.date = getDateRangeUTC(startDate, endDate);
     }
@@ -4152,82 +4315,13 @@ export const getProfitlossHistory = async (req, res) => {
     }
     const fullFilterMode = gameName && eventName && marketName;
 
-    // 4. Query non-casino bets from betHistoryModel
-    const sportsBets = await betHistoryModel.find(betQuery);
+    const bets = await betHistoryModel.find(betQuery);
 
-    // 5. Query casino bets from casinoBetHistoryModel
-    // Only include casino bets if marketName is not provided, or if it's 'WINNER'
-    const shouldIncludeCasino = !marketName || marketName === 'WINNER';
-
-    let casinoBetsRaw = [];
-    if (shouldIncludeCasino) {
-      const casinoQuery = {
-        userId: id.toString(), // Ensure string match
-      };
-
-      // Apply date filters for casino bets
-      if (startDate && endDate) {
-        const dateRange = getDateRangeUTC(startDate, endDate);
-        casinoQuery.createdAt = dateRange;
-      }
-
-      // Apply game name filter for casino (map to game_name or game_uid)
-      if (gameName) {
-        casinoQuery.$or = [{ game_name: gameName }, { game_uid: gameName }];
-      }
-
-      casinoBetsRaw = await CasinoBetHistory.find(casinoQuery);
-    }
-
-    // 6. Transform casino bets to match betHistoryModel structure
-    const casinoBets = casinoBetsRaw
-      .filter((bet) => bet.change !== 0) // Only include bets with profit/loss
-      .map((bet) => {
-        // Determine status based on change (positive = win, negative = loss)
-        const status = bet.change > 0 ? 1 : 2;
-        const resultAmount = Math.abs(
-          bet.change > 0 ? bet.win_amount : bet.bet_amount
-        );
-
-        return {
-          _id: bet._id,
-          userId: bet.userId,
-          userName: bet.userName,
-          gameId: bet.game_uid,
-          gameName: 'Casino', // Always use "Casino" for all casino bets
-          eventName: bet.game_name || bet.game_uid,
-          marketName: 'WINNER',
-          market_id: bet.game_round, // Use game_round as market_id
-          roundId: bet.game_round,
-          betType: 'casino',
-          gameType: 'casino',
-          status: status,
-          profitLossChange: bet.change,
-          resultAmount: resultAmount,
-          betResult: bet.change > 0 ? 'WIN' : 'LOSS',
-          price: bet.bet_amount,
-          betAmount: bet.win_amount,
-          createdAt: bet.createdAt,
-          date: bet.createdAt,
-        };
-      });
-
-    // 7. Merge both bet arrays
-    const bets = [...sportsBets, ...casinoBets];
-    // console.log("bets", bets)
-
-    // 6. Handle full filter mode (return raw data without calculations)
     if (fullFilterMode) {
-      const betsWithMarketId = bets.map((bet) => {
-        // Handle both Mongoose documents and plain objects
-        const betObj = bet.toObject ? bet.toObject() : bet;
-        return {
-          ...betObj,
-          marketId: betObj.market_id
-            ? betObj.market_id.match(/\d+/g)?.pop()
-            : null,
-        };
-      });
+      const betsWithMarketId = bets.map((bet) => ({
+        ...bet.toObject(),
+        marketId: bet.market_id ? bet.market_id.match(/\d+/g)?.pop() : null,
+      }));
       return res.status(200).json({
         success: true,
         data: {
@@ -4255,40 +4349,20 @@ export const getProfitlossHistory = async (req, res) => {
       groupKey = 'marketName';
     }
 
-    // console.log("bets", bets);
-
     const reportMap = {};
 
-    // Group casino bets by roundId to handle offset positions
     const processedRounds = new Set();
 
     for (const bet of bets) {
       // const key = bet[groupKey]?.trim() || "Unknown";
       let key;
-
-      // For casino bets, always group by "Casino" regardless of groupKey
-      if (bet.betType === 'casino') {
-        if (eventName && !gameName && !marketName) {
-          // For EventMatches page, show individual markets
-          key =
-            `${bet.marketName}_${bet.market_id || bet._id}`.trim() || 'Casino';
-        } else if (groupKey === 'gameName') {
-          // Always use "Casino" when grouping by gameName
-          key = 'Casino';
-        } else {
-          // Use existing logic for other grouping keys
-          key = bet[groupKey]?.trim() || 'Casino';
-        }
+      if (eventName && !gameName && !marketName) {
+        // For EventMatches page, show individual markets
+        key =
+          `${bet.marketName}_${bet.market_id || bet._id}`.trim() || 'Unknown';
       } else {
-        // Non-casino bets use existing logic
-        if (eventName && !gameName && !marketName) {
-          // For EventMatches page, show individual markets
-          key =
-            `${bet.marketName}_${bet.market_id || bet._id}`.trim() || 'Unknown';
-        } else {
-          // Use existing logic for other cases
-          key = bet[groupKey]?.trim() || 'Unknown';
-        }
+        // Use existing logic for other cases
+        key = bet[groupKey]?.trim() || 'Unknown';
       }
 
       // const key = bet[groupKey]?.trim() || "Unknown";
@@ -4302,7 +4376,7 @@ export const getProfitlossHistory = async (req, res) => {
           marketId: bet.market_id ? bet.market_id.match(/\d+/g)?.pop() : null,
           result: bet.betResult,
           userName: bet.userName,
-          date: bet.createdAt || bet.date,
+          date: bet.createdAt,
           WinAmount: 0,
           LossAmount: 0,
           myProfit: 0,
@@ -4321,7 +4395,7 @@ export const getProfitlossHistory = async (req, res) => {
             (b) =>
               b.roundId === bet.roundId &&
               b.gameId === bet.gameId &&
-              String(b.userId) === String(bet.userId)
+              b.userId === bet.userId
           );
 
           // Calculate net result

@@ -121,7 +121,17 @@ async function fetchFreshCasinoData(cachedData, gameId) {
  */
 export async function validateSportsMarket(
   cachedData,
-  { gameId, gameName, marketName, teamName, xValue, otype, sid, oname }
+  {
+    gameId,
+    gameName,
+    marketName,
+    teamName,
+    xValue,
+    otype,
+    sid,
+    oname,
+    gameType,
+  }
 ) {
   const apitype = SPORT_NAME_TO_APITYPE[gameName?.toLowerCase()] || 'cricket';
 
@@ -137,14 +147,22 @@ export async function validateSportsMarket(
 
   const markets = freshResult.markets;
 
-  const market = markets.find((m) => {
-    const mname = m.mname || '';
-    return (
-      mname === marketName ||
-      mname === API_MARKET_ALIASES[marketName] ||
-      API_MARKET_ALIASES[mname] === marketName
-    );
-  });
+  const parentMname =
+    gameType === 'fancy1'
+      ? 'fancy1'
+      : gameType === 'oddeven'
+        ? 'oddeven'
+        : null;
+  const market = parentMname
+    ? markets.find((m) => (m.mname || '') === parentMname)
+    : markets.find((m) => {
+        const mname = m.mname || '';
+        return (
+          mname === marketName ||
+          mname === API_MARKET_ALIASES[marketName] ||
+          API_MARKET_ALIASES[mname] === marketName
+        );
+      });
 
   if (!market) {
     return {
@@ -153,7 +171,19 @@ export async function validateSportsMarket(
     };
   }
 
-  if (market.status === 'SUSPENDED' || market.gstatus === 'SUSPENDED') {
+  // Bookmaker markets from Provider B report market-level status="SUSPENDED"
+  // even when individual runners (section[].gstatus) are ACTIVE and priceable.
+  // The frontend Bookmaker panel deliberately ignores market-level status and
+  // gates only on section gstatus — backend must use the same rule for these
+  // markets or every bookmaker bet gets rejected. Selection-level suspension
+  // is still enforced below, so genuinely suspended runners remain blocked.
+  const isBookmakerMarket =
+    market.mname === 'Bookmaker' || market.mname === 'Bookmaker IPL CUP';
+
+  if (
+    !isBookmakerMarket &&
+    (market.status === 'SUSPENDED' || market.gstatus === 'SUSPENDED')
+  ) {
     return { valid: false, reason: 'Market is suspended. Bet not accepted.' };
   }
 
@@ -164,10 +194,20 @@ export async function validateSportsMarket(
     };
   }
 
-  const normalizedTeam = (teamName || '').trim().toLowerCase();
+  // OddEven stores marketName = section nat and teamName = "Odd"/"Even".
+  // Section lookup keys on marketName in that case; teamName determines which
+  // odds column (back for Odd, lay for Even) to validate against.
+  let oddEvenSide = null;
+  let lookupTarget = teamName || '';
+  if (gameType === 'oddeven') {
+    oddEvenSide = (teamName || '').trim().toLowerCase();
+    lookupTarget = marketName || '';
+  }
+
+  const normalizedTarget = lookupTarget.trim().toLowerCase();
   const teamSection = market.section.find((sec) => {
     const nat = (sec.nat || '').trim().toLowerCase();
-    return nat === normalizedTeam || nat.startsWith(normalizedTeam + ' (');
+    return nat === normalizedTarget || nat.startsWith(normalizedTarget + ' (');
   });
 
   if (!teamSection) {
@@ -195,9 +235,18 @@ export async function validateSportsMarket(
   }
 
   const userOdds = parseFloat(xValue);
+  // For oddeven, the frontend always sends otype='back' (both Odd and Even are
+  // synthetic back bets). Route to the correct odds column based on side: Odd
+  // uses the section's back odds, Even uses the section's lay odds.
+  const effectiveOtype =
+    gameType === 'oddeven' && oddEvenSide
+      ? oddEvenSide === 'odd'
+        ? 'back'
+        : 'lay'
+      : otype;
   const liveOddsObj = oname
     ? teamSection.odds.find((o) => o.oname === oname)
-    : teamSection.odds.find((o) => o.otype === otype && o.tno === 0);
+    : teamSection.odds.find((o) => o.otype === effectiveOtype && o.tno === 0);
   const liveOdds = liveOddsObj ? parseFloat(liveOddsObj.odds) : null;
 
   if (liveOdds === null || isNaN(liveOdds) || liveOdds <= 0) {
@@ -220,6 +269,7 @@ export async function validateSportsMarket(
     marketMeta: {
       mid: market.mid || null,
       gmid: market.gmid || null,
+      fancyId: teamSection.sid || null,
       runners: (market.section || []).map((sec) => ({
         selectionId: sec.sid,
         selectionName: (sec.nat || '').trim(),
@@ -247,6 +297,7 @@ export async function validateFancyMarket(
     sid,
     fancyScore,
     oname,
+    gameType,
   }
 ) {
   const apitype = SPORT_NAME_TO_APITYPE[gameName?.toLowerCase()] || 'cricket';
@@ -275,22 +326,41 @@ export async function validateFancyMarket(
 
     if (section) {
       // ── Suspension checks ──
-      if (
-        section.gstatus === 'SUSPENDED' ||
-        section.gstatus === 'Ball Running' ||
-        section.status === 'SUSPENDED'
-      ) {
-        return {
-          valid: false,
-          reason: 'Market is suspended. Bet not accepted.',
-        };
-      }
+      // if (
+      //   section.gstatus === 'SUSPENDED' ||
+      //   section.gstatus === 'Ball Running' ||
+      //   section.status === 'SUSPENDED'
+      // ) {
+      //   return {
+      //     valid: false,
+      //     reason: 'Market is suspended. Bet not accepted.',
+      //   };
+      // }
 
-      if (market.status === 'SUSPENDED' || market.gstatus === 'SUSPENDED') {
-        return {
-          valid: false,
-          reason: 'Market is suspended. Bet not accepted.',
-        };
+      // if (market.status === 'SUSPENDED' || market.gstatus === 'SUSPENDED') {
+      //   return {
+      //     valid: false,
+      //     reason: 'Market is suspended. Bet not accepted.',
+      //   };
+      // }
+      const isNormal = (gameType || '').toLowerCase() === 'normal';
+
+      if (isNormal) {
+        if (section.gstatus === 'SUSPENDED' || section.gstatus === 'Ball Running') {
+          return { valid: false, reason: 'Market is suspended. Bet not accepted.' };
+        }
+      } else {
+        if (
+          section.gstatus === 'SUSPENDED' ||
+          section.gstatus === 'Ball Running' ||
+          section.status === 'SUSPENDED'
+        ) {
+          return { valid: false, reason: 'Market is suspended. Bet not accepted.' };
+        }
+
+        if (market.status === 'SUSPENDED' || market.gstatus === 'SUSPENDED') {
+          return { valid: false, reason: 'Market is suspended. Bet not accepted.' };
+        }
       }
 
       // ── Odds array must exist ──

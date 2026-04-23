@@ -1069,20 +1069,54 @@ console.log("data source",dataSource)
 
   
  
-  const fancy1List = bettingData?.filter((item) => item.mname === "Normal");
+  const fancy1List = Array.isArray(dataSource)
+    ? dataSource.filter(
+        (item) =>
+          item?.mtype === "INNINGS_RUNS" ||
+          item?.mname === "Normal" ||
+          item?.name === "Normal"
+      )
+    : [];
 
-  const fancy1Data =
-    Array.isArray(fancy1List) && fancy1List.length > 0 && fancy1List[0].section
-      ? fancy1List?.[0].section.map((sec) => ({
-        team: sec.nat,
+  const fancy1Data = fancy1List.flatMap((market) => {
+    // Provider may send either `runners` or pre-shaped `section`.
+    if (Array.isArray(market?.runners) && market.runners.length > 0) {
+      return market.runners.map((runner) => ({
+        marketid: market.marketid ?? market.marketId ?? market.id,
+        event_id: market.event_id ?? market.eventId ?? market.groupById,
+        team: runner.name,
+        sid: runner.id,
+        odds: [
+          ...(runner.back?.[0]
+            ? [{ oname: "back1", odds: runner.back[0].price, size: runner.back[0].size }]
+            : []),
+          ...(runner.lay?.[0]
+            ? [{ oname: "lay1", odds: runner.lay[0].price, size: runner.lay[0].size }]
+            : []),
+        ],
+        min: market.minLiabilityPerBet ?? market.min ?? null,
+        max: market.maxLiabilityPerBet ?? market.max ?? null,
+        status: market.status ?? runner.status ?? "OPEN",
+        statusLabel: market.statusLabel ?? runner.statusLabel,
+      }));
+    }
+
+    if (Array.isArray(market?.section) && market.section.length > 0) {
+      return market.section.map((sec) => ({
+        marketid: market.marketid ?? market.marketId ?? market.id,
+        event_id: market.event_id ?? market.eventId ?? market.groupById,
+        team: sec.nat ?? sec.team ?? "-",
         sid: sec.sid,
-        odds: sec.odds,
-        max: sec.max,
-        min: sec.min,
-        mname: fancy1List[0].mname, // ✅ Access from first item
-        status: sec.gstatus, // ✅ Access from first item
-      }))
-      : [];
+        odds: Array.isArray(sec.odds) ? sec.odds : [],
+        min: sec.min ?? market.minLiabilityPerBet ?? market.min ?? null,
+        max: sec.max ?? market.maxLiabilityPerBet ?? market.max ?? null,
+        status: sec.gstatus ?? market.status ?? "OPEN",
+        statusLabel: sec.statusLabel ?? market.statusLabel,
+      }));
+    }
+
+    return [];
+  });
     // console.log("fancy1 data",fancy1Data) oddeven
 //   const fancy1List = Array.isArray(dataSource)
 //   ? dataSource.filter((item) => item.mtype === "INNINGS_RUNS")
@@ -1533,7 +1567,7 @@ const fetchScorecard = async (isInitial = false) => {
               </div>
             )
           }
-          {
+          {/* {
             tiedMatchList.length > 0 && (
               <div
                 className={`relative flex items-center gap-2 cursor-pointer`}
@@ -1547,15 +1581,15 @@ const fetchScorecard = async (isInitial = false) => {
                 )}
               </div>
             )
-          }
+          } */}
         </div>
           {/* Match Odds Section */}
           {matchOddsList.length > 0 && TiedOddSelected === "odds" && (
             <Matchodds openBetSlip={openBetSlip} matchOddsList={matchOddsList} gameid={gameid} match={match} selectedBetData={selectedBetData} gameName="Cricket Game"/>
           )}
-          {tiedMatchList.length > 0 && TiedOddSelected === "tied" && (
+          {/* {tiedMatchList.length > 0 && TiedOddSelected === "tied" && (
             <TiedMatch openBetSlip={openBetSlip} matchOddsList={tiedMatchList} gameid={gameid} match={match} selectedBetData={selectedBetData} gameName="Cricket Game"/>
-          )}
+          )} */}
           <div className='bg-[#eef6fb] pb-5'>
             {/* Bookmaker Section */}
             {BookmakerList.length > 0 && (

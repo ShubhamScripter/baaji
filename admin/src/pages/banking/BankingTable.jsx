@@ -359,6 +359,7 @@ import { useSelector } from "react-redux";
 import axiosInstance from "../../utils/axiosInstance";
 import { useNavigate } from "react-router";
 import CreditRef from "../../components/downListComp/admin/CreditRef";
+import { toast } from "react-hot-toast";
 function BankingTable({ onTransactionComplete, downlines: filteredDownlines }) {
   const navigate = useNavigate();
   // const { downlines } = useSelector((state) => state.downline);
@@ -395,17 +396,21 @@ console.log("localDownlines", localDownlines);
   };
 
   const handleSubmit = async () => {
-    setSubmitting(true);
-
     const validTransactions = Object.entries(transactions).filter(
       ([_, tx]) => tx && tx.type && tx.amount > 0
     );
 
     if (validTransactions.length === 0) {
-      alert("No transactions to submit.");
-      setSubmitting(false);
+      toast.error("Please add at least one valid deposit/withdraw entry.");
       return;
     }
+
+    if (!password?.trim()) {
+      toast.error("Master password is required.");
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const requests = validTransactions.map(([userId, tx]) =>
@@ -416,25 +421,49 @@ console.log("localDownlines", localDownlines);
             masterPassword: password,
             remark: tx.remark || "",
           },
-          type: tx.type === "D" ? "deposite" : "withdraw",
+          type: tx.type === "D" ? "deposite" : "withdrawal",
         })
       );
 
       const responses = await Promise.all(requests);
 
-      // Update local downlines after successful transactions
-      const updatedDownlines = localDownlines.map((user) => {
-        const res = responses.find((r) => r.data.child._id === user._id);
-        return res ? res.data.child : user;
+      // Some backends return { child }, others return paginated { data: [] }.
+      // Build a map safely so UI never crashes on shape differences.
+      const updatedUsersById = new Map();
+      responses.forEach((response, index) => {
+        const [userId] = validTransactions[index];
+        const childUser = response?.data?.child;
+
+        if (childUser?._id) {
+          updatedUsersById.set(childUser._id, childUser);
+          return;
+        }
+
+        const usersFromList = Array.isArray(response?.data?.data)
+          ? response.data.data
+          : [];
+        const matchedUser = usersFromList.find((u) => u?._id === userId);
+        if (matchedUser?._id) {
+          updatedUsersById.set(matchedUser._id, matchedUser);
+        }
       });
+
+      // Update local downlines after successful transactions
+      const updatedDownlines = localDownlines.map(
+        (user) => updatedUsersById.get(user._id) || user
+      );
       console.log("Updated Downlines:", updatedDownlines);
       setLocalDownlines(updatedDownlines);
-      alert("Transactions completed successfully!");
+      toast.success(
+        `${validTransactions.length} transaction${
+          validTransactions.length > 1 ? "s" : ""
+        } completed successfully.`
+      );
       handleClearAll();
       if (onTransactionComplete) onTransactionComplete();
     } catch (err) {
       console.error("Submit error:", err.response?.data || err.message);
-      alert(`Error: ${err.response?.data?.message || err.message}`);
+      toast.error(err?.response?.data?.message || "Transaction failed.");
     } finally {
       setSubmitting(false);
     }

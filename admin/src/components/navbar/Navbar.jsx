@@ -72,29 +72,9 @@ const navData = [
     path: "/BetListLive"
   },
   {
-    label: "Risk Management",
-    icon: "FaShieldAlt",
-    path: "/RiskManagement"
-  },
-  {
     label: "Banking",
     icon: "FaCreditCard",
     path: "/banking"
-  },
-  {
-    label: "Deposit Accounts",
-    icon: "FaUniversity",
-    path: "/manual-deposit-accounts"
-  },
-  {
-    label: "Deposit Requests",
-    icon: "FaInbox",
-    path: "/manual-deposit-requests"
-  },
-  {
-    label: "Withdraw Requests",
-    icon: "FaMoneyBillWave",
-    path: "/manual-withdraw-requests"
   },
   {
     label: "Block Market",

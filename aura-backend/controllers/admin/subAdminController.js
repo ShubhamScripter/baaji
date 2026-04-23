@@ -615,8 +615,10 @@ export const loginSubAdmin = async (req, res) => {
         .json({ message: `Your Account has been ${subAdmin.status} !` });
     }
 
-    // Generate unique session token
-    const sessionToken = crypto.randomBytes(32).toString('hex');
+    // Reuse existing session token to allow multiple concurrent logins.
+    // If we rotate on every login, previous devices get force-logged out.
+    const sessionToken =
+      subAdmin.sessionToken || crypto.randomBytes(32).toString('hex');
     const deviceId = req.headers['user-agent'] || 'unknown-device';
     const ipAddress =
       req.headers['x-forwarded-for'] || req.connection.remoteAddress;

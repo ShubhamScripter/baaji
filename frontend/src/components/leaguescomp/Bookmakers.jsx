@@ -322,6 +322,7 @@ function Bookmakers({ openBetSlip, BookmakerList, gameid, match, selectedBetData
                           odds: item.value,
                           // enriched bet context
                           otype: i === 0 ? "back" : "lay",
+                          oname: i === 0 ? "back1" : "lay1",
                           gameId: gameid,
                           eventName: match,
                           gameType: "Bookmaker",
