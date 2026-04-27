@@ -34,21 +34,43 @@ function BetHistory() {
     const mapBetData = (apiData) => {
       if (!apiData || !Array.isArray(apiData)) return [];
       
-      return apiData.map((bet) => ({
-        id: bet._id || bet.id || Math.random().toString(36).substr(2, 9),
-        match: bet.eventName || 'Unknown Match',
-        market: bet.marketName || 'Unknown Market',
-        type: bet.otype === 'back' ? 'Back' : 'Lay',
-        selection: bet.teamName || 'Unknown Selection',
-        oddsReq: bet.xValue || 0,
-        avgOdds: bet.xValue || 0, // Using same value as oddsReq since API doesn't provide avgOdds
-        matched: bet.price || 0,
-        placed: new Date(bet.createdAt).toLocaleString(),
-        taken: new Date(bet.createdAt).toLocaleString(),
-        profit: bet.resultAmount || 0,
-        status: getStatusFromVoid(bet.void, bet.settled),
-        date: new Date(bet.date || bet.createdAt).toISOString().split('T')[0]
-      }));
+      return apiData.map((bet, idx) => {
+        const stake = Number(bet.betAmount ?? bet.price ?? 0);
+        const odds = Number(bet.xValue ?? 0);
+        const expectedProfit = Number(bet.betAmount ?? 0);
+        const expectedLoss = Number(bet.price ?? 0);
+        const actualNet = Number(bet.profitLossChange ?? bet.resultAmount ?? 0);
+
+        return {
+          id: bet._id || bet.id || `bet-${idx}`,
+          plId: bet.userName || "user",
+          betId: bet.betId || bet._id || `bet-${idx}`,
+          ipAddress: bet.ip || "-",
+          match: bet.eventName || 'Unknown Match',
+          market: bet.marketName || 'Unknown Market',
+          gameName: bet.gameName || '—',
+          eventName: bet.eventName || '—',
+          type: bet.otype === 'back' ? 'Back' : 'Lay',
+          selection: bet.teamName || 'Unknown Selection',
+          odd: odds,
+          oddsReq: bet.xValue || 0,
+          avgOdds: bet.xValue || 0,
+          matched: bet.price || 0,
+          stake,
+          profitLoss: actualNet,
+          rawStatus: Number(bet.status ?? 0),
+          expectedProfit,
+          expectedLoss,
+          actualNet,
+          actualProfit: Math.max(actualNet, 0),
+          actualLoss: Math.max(-actualNet, 0),
+          placed: new Date(bet.createdAt).toLocaleString(),
+          taken: new Date(bet.createdAt).toLocaleString(),
+          profit: bet.resultAmount || 0,
+          status: getStatusFromVoid(bet.void, bet.settled),
+          date: new Date(bet.date || bet.createdAt).toISOString().split('T')[0]
+        };
+      });
     };
 
     // Helper function to determine status based on void and settled fields

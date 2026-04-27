@@ -6,7 +6,6 @@ import { useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { geAllBetHistory } from '../../../store/subadminSlice'
 import axiosInstance from '../../../utils/axiosInstance'
-import { use } from 'react';
 const ExchangeData =[]
 //  [
 //   {
@@ -338,7 +337,6 @@ const Fancydata=[]
 //     "profitLoss": -50
 //   }
 // ]
-const sportsbookdata=[]
 // const sportsbookdata=[
 //   {
 //     "plId": "ahasan333",
@@ -408,8 +406,6 @@ const sportsbookdata=[]
 // ]
 const bookmakerdata=[]
 const casinodata=[]
-const tossdata=[]
-const tiedata=[]
 
 function BettingHistory() {
   const { userId,role } = useParams();
@@ -431,6 +427,22 @@ function BettingHistory() {
       user: "CL",
     };
    const user = useSelector(state => state.auth.user);
+   const mapSelectedTypeToSelectedGame = (type) => {
+    switch (type) {
+      case "Exchange":
+        return "matchoods";
+      case "FancyBet":
+        return "Normal";
+      case "TiedMatch":
+        return "Tied Match";
+      case "BookMaker":
+        return "Bookmaker";
+      case "Casino":
+        return "Casino";
+      default:
+        return "";
+    }
+  };
     useEffect(() => {
       if (!userId) return;
       const fetchUserInfo = async () => {
@@ -445,82 +457,67 @@ function BettingHistory() {
       
     }, [userId]);
 
-  // Function to fetch casino data from API
-  const fetchCasinoData = async () => {
-    try {
+  // Fetch bet history from API based on selected tab filter
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!userId) return;
       setLoading(true);
-      const response = await axiosInstance.get(
-        `/casino/all-bet-history?id=${userId}&page=1&limit=100`
-      );
-
-      if (response.data.success && response.data.data.length > 0) {
-        // Transform casino data to match table format
-        const transformedData = response.data.data.map((bet) => ({
-          betId: bet.game_round || bet._id?.toString() || "-",
-          plId: bet.userName || "-",
-          date: bet.provider_timestamp ? new Date(bet.provider_timestamp).toLocaleString() : (bet.createdAt ? new Date(bet.createdAt).toLocaleString() : "-"),
-          market: "Casino",
-          match: bet.game_uid || "Unknown Game",
-          stake: bet.bet_amount || 0,
-          profitLoss: bet.change || 0,
-          expanded: false
-        }));
-
-        setbettingData(transformedData);
-      } else {
-        setbettingData([]);
+      try {
+        await dispatch(
+          geAllBetHistory({
+            id: userId,
+            page: 1,
+            limit: 50,
+            selectedGame: mapSelectedTypeToSelectedGame(selectedType),
+            selectedVoid: "",
+          })
+        );
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching casino data:', error);
-      setbettingData(casinodata);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Fetch bet history from API without changing UI (dates optional, omitted)
+    fetchData();
+  }, [userId, selectedType, dispatch]);
+
+  // Map API data to the table's expected shape
   useEffect(() => {
-    if (userId) {
-      dispatch(geAllBetHistory({ id: userId, page: 1, limit: 50, selectedGame: "", selectedVoid: "" }));
-    }
-  }, [userId, dispatch]);
+    const mapped = (bethistoryData || []).map((item) => {
+      const isCasinoBet = String(item?.gameType || "").toLowerCase() === "casino";
+      return {
+        plId: item?.userName || item?.plId || "-",
+        betId: item?.betId || item?._id || "-",
+        date: item?.createdAt || item?.date || "-",
+        ip: item?.ip || "-",
+        market: item?.gameName || item?.marketName || "-",
+        match: item?.eventName || item?.match || "-",
+        selection: item?.teamName || item?.selection || "-",
+        type: item?.otype || item?.type || "-",
+        odds: item?.xValue ?? item?.odds ?? "-",
+        stake: item?.price ?? item?.stake ?? "-",
+        profitLoss: item?.price ?? item?.betAmount ?? "-",
+        // For BettingTableCasino compatibility
+        expanded: false,
+        game_round: isCasinoBet ? (item?.betId || item?._id || "-") : undefined,
+        provider_timestamp: item?.createdAt,
+        game_uid: isCasinoBet ? (item?.teamName || item?.match || "-") : undefined,
+        bet_amount: isCasinoBet ? (item?.price ?? item?.stake ?? 0) : undefined,
+        change: isCasinoBet ? (item?.resultAmount ?? 0) : undefined,
+      };
+    });
 
-  // Fetch casino data when Casino tab is selected
-  useEffect(() => {
-    if (selectedType === "Casino" && userId) {
-      fetchCasinoData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedType]);
-
-  // Map API data to the table's expected shape; fallback to static sets per tab
-  useEffect(() => {
-    const mapped = (bethistoryData || []).map((item) => ({
-      plId: item?.userName || item?.plId || "-",
-      betId: item?.betId || item?._id || "-",
-      date: item?.createdAt || item?.date || "-",
-      ip: item?.ip || "-",
-      market: item?.gameName || item?.marketName || "-",
-      match: item?.eventName || item?.match || "-",
-      selection: item?.teamName || item?.selection || "-",
-      type: item?.otype || item?.type || "-",
-      odds: item?.xValue ?? item?.odds ?? "-",
-      stake: item?.price ?? item?.stake ?? "-",
-      profitLoss:item?.resultAmount ??  "-",
-    }));
-
-    if(selectedType==="Exchange"){
-      setbettingData(mapped.length ? mapped : ExchangeData)
-    }else if(selectedType==="FancyBet"){
-      setbettingData(Fancydata)
-    }else if(selectedType==="SportsBook"){
-      setbettingData(sportsbookdata)
-    }else if(selectedType==="BookMaker"){
-      setbettingData(bookmakerdata)
-    }else if(selectedType==="Toss"){
-      setbettingData(tossdata)
-    }else if(selectedType==="Tie"){
-      setbettingData(tiedata)
+    if (selectedType === "Exchange") {
+      setbettingData(mapped.length ? mapped : ExchangeData);
+    } else if (selectedType === "FancyBet") {
+      setbettingData(mapped.length ? mapped : Fancydata);
+    } else if (selectedType === "BookMaker") {
+      setbettingData(mapped.length ? mapped : bookmakerdata);
+    } else if (selectedType === "TiedMatch") {
+      setbettingData(mapped);
+    } else if (selectedType === "Casino") {
+      setbettingData(mapped);
+    } else {
+      setbettingData(mapped);
     }
   }, [bethistoryData, selectedType])
   
@@ -565,10 +562,6 @@ function BettingHistory() {
                 onClick={()=>setselectedType("FancyBet")}
                 >
                   FancyBet</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'SportsBook'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                onClick={()=>setselectedType("SportsBook")}
-                >
-                  SportsBook</li>
                 <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'BookMaker'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
                 onClick={()=>setselectedType("BookMaker")}
                 >
@@ -577,14 +570,10 @@ function BettingHistory() {
                 onClick={()=>setselectedType("Casino")}
                 >
                   Casino</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'Toss'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                onClick={()=>setselectedType("Toss")}
+                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'TiedMatch'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
+                onClick={()=>setselectedType("TiedMatch")}
                 >
-                  Toss</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'Tie'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                onClick={()=>setselectedType("Tie")}
-                >
-                  Tie</li>
+                  TiedMatch</li>
               </ul>
             </div>
             <div className='mt-2' >

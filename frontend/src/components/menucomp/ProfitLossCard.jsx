@@ -8,6 +8,32 @@ function ProfitLossCard({data}) {
       const toggleDetails = (index) => {
         setExpandedIndex((prev) => (prev === index ? null : index));
       };
+
+  const formatNumber = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "0.00";
+    return num.toFixed(2);
+  };
+
+  const getProfitLossMeta = (bet) => {
+    const statusCode = Number(bet.rawStatus ?? bet.statusCode ?? 1);
+    const expectedProfit = Number(bet.expectedProfit ?? 0);
+    const expectedLoss = Number(bet.expectedLoss ?? 0);
+    if (statusCode === 0) {
+      return {
+        label: "Expected P/L (BDT)",
+        text: `+${formatNumber(expectedProfit)} / -${formatNumber(Math.abs(expectedLoss))}`,
+        colorClass: "text-[#198754]",
+      };
+    }
+
+    const net = Number(bet.actualNet ?? bet.matched ?? 0);
+    return {
+      label: "Profit/Loss (BDT)",
+      text: formatNumber(net),
+      colorClass: net < 0 ? "text-red-600" : "text-[#198754]",
+    };
+  };
   return (
     <div className="bg-[#f1f7ff] flex flex-col gap-4 justify-center p-4">
             {data.length ===0 &&(
@@ -19,7 +45,9 @@ function ProfitLossCard({data}) {
               {/* Add more bet cards as needed */}
               </div>
             )}
-          {data.map((bet, index) => (
+          {data.map((bet, index) => {
+            const plMeta = getProfitLossMeta(bet);
+            return (
             <div
               key={bet.id}
               className="shadow-md overflow-hidden w-full max-w-md rounded-2xl bg-white mx-auto"
@@ -45,8 +73,8 @@ function ProfitLossCard({data}) {
                       <div className="font-semibold md:text-base">{bet.placed}</div>
                     </td>
                     <td colSpan={2} className="p-2">
-                      <span className="text-gray-600 md:text-lg">Profit/Loss (BDT)</span>
-                      <div className="font-semibold md:text-base text-[#198754]">{bet.matched}</div>
+                      <span className="text-gray-600 md:text-lg">{plMeta.label}</span>
+                      <div className={`font-semibold md:text-base ${plMeta.colorClass}`}>{plMeta.text}</div>
                     </td>
                     </tr>
                   {expandedIndex === index && (
@@ -78,8 +106,8 @@ function ProfitLossCard({data}) {
                           <div className="font-semibold md:text-base">{bet.stake}</div>
                         </td>
                         <td className="p-2">
-                          <span className="text-gray-600 md:text-lg">Profit/Loss (BDT)</span>
-                          <div className="font-semibold md:text-base text-[#198754]">{bet.matched}</div>
+                          <span className="text-gray-600 md:text-lg">{plMeta.label}</span>
+                          <div className={`font-semibold md:text-base ${plMeta.colorClass}`}>{plMeta.text}</div>
                         </td>
                       </tr>
                       <tr className="">
@@ -135,7 +163,7 @@ function ProfitLossCard({data}) {
                 )}
               </div>
             </div>
-          ))}
+          )})}
         </div>
   )
 }

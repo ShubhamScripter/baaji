@@ -19,11 +19,11 @@ const navData = [
     label: "My Report",
     icon: "FaChartBar",
     children: [
-      {
-        label: "Profit/Loss Report by Downline",
-        icon: "FaFileAlt",
-        path: "/AprofitByDownline"
-      },
+      // {
+      //   label: "Profit/Loss Report by Downline",
+      //   icon: "FaFileAlt",
+      //   path: "/AprofitByDownline"
+      // },
       {
         label: "Profit/Loss by Downline",
         icon: "FaFileInvoiceDollar",
@@ -44,21 +44,21 @@ const navData = [
         icon: "FaDice",
         path: "/ACdownlinesportspl"
       },
-      {
-        label: "Casino Profit/Loss Report by Date",
-        icon: "FaCalendarAlt",
-        path: "/AprofitCasino"
-      },
-      {
-        label: "Casino P/L Downline Monthly",
-        icon: "FaCalendar",
-        path: "/ACasinoprofitAndLossDownlineNew"
-      },
-      {
-        label: "International Casino P/L Downline Monthly",
-        icon: "FaGlobe",
-        path: "/ICasinoprofitAndLossDownlineNew"
-      }
+      // {
+      //   label: "Casino Profit/Loss Report by Date",
+      //   icon: "FaCalendarAlt",
+      //   path: "/AprofitCasino"
+      // },
+      // {
+      //   label: "Casino P/L Downline Monthly",
+      //   icon: "FaCalendar",
+      //   path: "/ACasinoprofitAndLossDownlineNew"
+      // },
+      // {
+      //   label: "International Casino P/L Downline Monthly",
+      //   icon: "FaGlobe",
+      //   path: "/ICasinoprofitAndLossDownlineNew"
+      // }
     ]
   },
   {
@@ -81,11 +81,11 @@ const navData = [
     icon: "FaBan",
     path: "/block-market"
   },
-  {
-    label: "Admin Setting",
-    icon: "FaCogs",
-    path: "/general-setting"
-  },
+  // {
+  //   label: "Admin Setting",
+  //   icon: "FaCogs",
+  //   path: "/general-setting"
+  // },
   {
     label: "Other",
     icon: "FaEllipsisH",

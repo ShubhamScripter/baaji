@@ -102,8 +102,6 @@ const ExchangeData = [
   },
 ];
 const Fancydata = [];
-
-const sportsbookdata = [];
 const bookmakerdata = [];
 
 const casinodata = [
@@ -124,8 +122,6 @@ const casinodata = [
     ],
   }
 ];
-const tossdata = [];
-const tiedata = [];
 
 function BettingProfitLoss() {
   const { userId, role } = useParams();
@@ -134,7 +130,6 @@ function BettingProfitLoss() {
   const [selected, setselected] = useState("ProfitLoss");
   const [selectedType, setselectedType] = useState("Exchange");
   const [loading, setLoading] = useState(false);
-  const [apiData, setApiData] = useState([]);
   const [UserInfo, setUserInfo] = useState([]);
     
     const title = {
@@ -147,6 +142,22 @@ function BettingProfitLoss() {
       user: "CL",
     };
    const user = useSelector(state => state.auth.user);
+   const mapSelectedTypeToSelectedGame = (type) => {
+    switch (type) {
+      case "Exchange":
+        return "matchoods";
+      case "FancyBet":
+        return "Normal";
+      case "TiedMatch":
+        return "Tied Match";
+      case "BookMaker":
+        return "Bookmaker";
+      case "Casino":
+        return "Casino";
+      default:
+        return "";
+    }
+  };
     useEffect(() => {
       if (!userId) return;
       const fetchUserInfo = async () => {
@@ -185,7 +196,7 @@ function BettingProfitLoss() {
   const [endTime, setEndTime] = useState("23:59");
 
   // Function to fetch data from API
-  const fetchExchangeData = async (
+  const fetchProfitLossData = async (
     customStartDate = null,
     customEndDate = null,
     customStartTime = null,
@@ -200,7 +211,8 @@ function BettingProfitLoss() {
       const useStartTime = customStartTime || startTime;
       const useEndTime = customEndTime || endTime;
 
-      let queryParams = `page=1&limit=10&targetUserId=${userId}`;
+      const selectedGame = mapSelectedTypeToSelectedGame(selectedType);
+      let queryParams = `page=1&limit=10&targetUserId=${userId}&selectedGame=${encodeURIComponent(selectedGame)}`;
       if (useStartDate && useEndDate) {
         queryParams += `&startDate=${useStartDate}&endDate=${useEndDate}&startTime=${useStartTime}&endTime=${useEndTime}`;
       }
@@ -229,11 +241,10 @@ function BettingProfitLoss() {
           }))
         }));
 
-        setApiData(transformedData);
         setbettingData(transformedData);
       }
     } catch (error) {
-      console.error('Error fetching exchange data:', error);
+      console.error('Error fetching profit/loss data:', error);
       // Fallback to static data on error
       setbettingData(ExchangeData);
     } finally {
@@ -303,7 +314,6 @@ function BettingProfitLoss() {
         // Convert grouped object to array
         const transformedData = Object.values(groupedData);
         
-        setApiData(transformedData);
         setbettingData(transformedData);
       } else {
         // No data found, set empty array
@@ -319,22 +329,17 @@ function BettingProfitLoss() {
   };
 
   useEffect(() => {
-    if (selectedType === "Exchange") {
-      // Fetch real data from API for Exchange
-      fetchExchangeData();
-    } else if (selectedType === "Casino") {
-      // Fetch real data from API for Casino
+    if (selectedType === "Casino") {
       fetchCasinoData();
-    } else if (selectedType === "FancyBet") {
-      setbettingData(Fancydata);
-    } else if (selectedType === "SportsBook") {
-      setbettingData(sportsbookdata);
-    } else if (selectedType === "BookMaker") {
-      setbettingData(bookmakerdata);
-    } else if (selectedType === "Toss") {
-      setbettingData(tossdata);
-    } else if (selectedType === "Tie") {
-      setbettingData(tiedata);
+    } else if (
+      selectedType === "Exchange" ||
+      selectedType === "FancyBet" ||
+      selectedType === "BookMaker" ||
+      selectedType === "TiedMatch"
+    ) {
+      fetchProfitLossData();
+    } else {
+      setbettingData([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, userId]);
@@ -378,10 +383,6 @@ function BettingProfitLoss() {
                   onClick={() => setselectedType("FancyBet")}
                 >
                   FancyBet</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160]  cursor-pointer ${selectedType === 'SportsBook' ? 'bg-[#ffa00c]' : 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                  onClick={() => setselectedType("SportsBook")}
-                >
-                  SportsBook</li>
                 <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160]  cursor-pointer ${selectedType === 'BookMaker' ? 'bg-[#ffa00c]' : 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
                   onClick={() => setselectedType("BookMaker")}
                 >
@@ -390,14 +391,10 @@ function BettingProfitLoss() {
                   onClick={() => setselectedType("Casino")}
                 >
                   Casino</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160]  cursor-pointer ${selectedType === 'Toss' ? 'bg-[#ffa00c]' : 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                  onClick={() => setselectedType("Toss")}
+                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160]  cursor-pointer ${selectedType === 'TiedMatch' ? 'bg-[#ffa00c]' : 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
+                  onClick={() => setselectedType("TiedMatch")}
                 >
-                  Toss</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160]  cursor-pointer ${selectedType === 'Tie' ? 'bg-[#ffa00c]' : 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                  onClick={() => setselectedType("Tie")}
-                >
-                  Tie</li>
+                  TiedMatch</li>
               </ul>
             </div>
             <div className="bg-[#e0e6e6] border-b border-b-[#7e97a7] p-2">
@@ -447,10 +444,10 @@ function BettingProfitLoss() {
                     setStartTime("00:00");
                     setEndTime("23:59");
                     // Fetch with new dates
-                    if (selectedType === "Exchange") {
-                      fetchExchangeData(today, today, "00:00", "23:59");
-                    } else if (selectedType === "Casino") {
+                    if (selectedType === "Casino") {
                       fetchCasinoData(today, today, "00:00", "23:59");
+                    } else {
+                      fetchProfitLossData(today, today, "00:00", "23:59");
                     }
                   }}
                 >
@@ -467,10 +464,10 @@ function BettingProfitLoss() {
                     setStartTime("00:00");
                     setEndTime("23:59");
                     // Fetch with new dates
-                    if (selectedType === "Exchange") {
-                      fetchExchangeData(yesterdayStr, yesterdayStr, "00:00", "23:59");
-                    } else if (selectedType === "Casino") {
+                    if (selectedType === "Casino") {
                       fetchCasinoData(yesterdayStr, yesterdayStr, "00:00", "23:59");
+                    } else {
+                      fetchProfitLossData(yesterdayStr, yesterdayStr, "00:00", "23:59");
                     }
                   }}
                 >
@@ -479,10 +476,10 @@ function BettingProfitLoss() {
                 <button
                   className="border border-[#cb8009] text-xs font-[700] bg-[#ffcc2f] p-2 rounded-sm hover:bg-[#ffa00c] cursor-pointer"
                   onClick={() => {
-                    if (selectedType === "Exchange") {
-                      fetchExchangeData();
-                    } else if (selectedType === "Casino") {
+                    if (selectedType === "Casino") {
                       fetchCasinoData();
+                    } else {
+                      fetchProfitLossData();
                     }
                   }}
                   disabled={loading}
@@ -498,10 +495,10 @@ function BettingProfitLoss() {
                     setStartTime("00:00");
                     setEndTime("23:59");
                     // Fetch with default dates
-                    if (selectedType === "Exchange") {
-                      fetchExchangeData(defaultDates.startDate, defaultDates.endDate, "00:00", "23:59");
-                    } else if (selectedType === "Casino") {
+                    if (selectedType === "Casino") {
                       fetchCasinoData(defaultDates.startDate, defaultDates.endDate, "00:00", "23:59");
+                    } else {
+                      fetchProfitLossData(defaultDates.startDate, defaultDates.endDate, "00:00", "23:59");
                     }
                   }}
                 >
@@ -520,7 +517,7 @@ function BettingProfitLoss() {
               </p>
             </div>
             <div className="mt-4">
-              {(loading && selectedType === "Exchange") || (loading && selectedType === "Casino") ? (
+              {loading ? (
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                   <span className="ml-2 text-sm">Loading data...</span>

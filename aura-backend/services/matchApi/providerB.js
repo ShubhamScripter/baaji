@@ -127,7 +127,8 @@ export function createProviderB() {
           sport_id: String(payload.sport_id),
           sportName: payload.sportName || '',
           event_id: payload.event_id,
-          beventId: payload.beventId || payload.event_id || '',
+          // beventId: payload.beventId || payload.event_id || '',
+          beventId: payload.beventId ?? null,
           event_name: payload.event_name || '',
           fancyId: String(payload.fancyId),
           market_name: payload.market_name || '',
@@ -135,8 +136,9 @@ export function createProviderB() {
         };
       } else {
         const sid = Number(payload.sport_id);
-        const beventId =
-          payload.bevent_id || (sid === 4 ? payload.event_id : '') || '';
+        // const beventId =
+        //   payload.bevent_id || (sid === 4 ? payload.event_id : '') || '';
+        const beventId = payload.bevent_id ?? null;
 
         fullPayload = {
           api_key: API_KEY,

@@ -159,6 +159,7 @@ function CurrentBets() {
   const [page, setPage] = useState(1);
   const [selectedOption, setSelectedOption] = useState("LIVE DATA");
   const [selectedGame, setSelectedGame] = useState("");
+  const [selectedBetType, setSelectedBetType] = useState("Exchange");
   const [selectedVoid, setSelectedVoid] = useState("unsettle");
   const [pages, setPages] = useState(10);
 
@@ -211,22 +212,53 @@ function CurrentBets() {
   // Map betHistory to the format expected by BetCard
   const mappedBetData = useMemo(() => {
     if (!Array.isArray(betHistory)) return [];
-    return betHistory.map((bet, idx) => ({
+    return betHistory.map((bet, idx) => {
+      const stake = Number(bet.betAmount ?? bet.price ?? 0);
+      const odds = Number(bet.xValue ?? 0);
+      const expectedProfit = Number(bet.betAmount ?? 0);
+      const expectedLoss = Number(bet.price ?? 0);
+      const actualNet = Number(bet.profitLossChange ?? bet.resultAmount ?? 0);
+      return {
       id: bet._id || bet.id || `bet-${idx}`,
+      plId: bet.userName || "user",
+      betId: bet.betId || bet._id || `bet-${idx}`,
+      ipAddress: bet.ip || "-",
       match: bet.eventName || "Unknown Match",
       market: bet.marketName || "Unknown Market",
+      gameName: bet.gameName || "—",
+      eventName: bet.eventName || "—",
       type: bet.otype === 'back' ? 'Back' : 'Lay',
       selection: bet.teamName || "Unknown Selection",
+      odd: odds,
       oddsReq: bet.xValue || 0,
       avgOdds: bet.xValue || 0,
       matched: bet.price || 0,
+      stake,
+      profitLoss: actualNet,
+      rawStatus: Number(bet.status ?? 0),
+      expectedProfit,
+      expectedLoss,
+      actualNet,
+      actualProfit: Math.max(actualNet, 0),
+      actualLoss: Math.max(-actualNet, 0),
       placed: bet.createdAt ? new Date(bet.createdAt).toLocaleString() : "",
       taken: bet.createdAt ? new Date(bet.createdAt).toLocaleString() : "",
       profit: bet.profit || 0,
       status: getStatusFromVoid(bet.void, bet.settled),
       date: bet.date ? new Date(bet.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-    }));
+    }});
   }, [betHistory]);
+
+  const filterTabs = ["Exchange", "Bookmaker", "FancyBet"];
+  const selectedGameByTab = {
+    Exchange: "exchange",
+    Bookmaker: "bookmaker",
+    FancyBet: "fancybet",
+  };
+
+  useEffect(() => {
+    setSelectedGame(selectedGameByTab[selectedBetType] || "");
+  }, [selectedBetType]);
 
   return (
     <div>
@@ -237,11 +269,21 @@ function CurrentBets() {
         </div>
         <span className="text-white text-sm  md:text-lg font-semibold absolute -translate-x-1/2 left-1/2">Current Bets</span>
       </div>
-      <div className='bg-[#eef6fb] h-15 flex items-center justify-around'>
-        <span>Exchange</span>
-        <span>Bookmaker</span>
-        <span>FancyBet</span>
-        <span>SportsBook</span>
+      <div className='bg-[#eef6fb] h-15 flex items-center justify-around gap-2 px-2'>
+        {filterTabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setSelectedBetType(tab)}
+            className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
+              selectedBetType === tab
+                ? "bg-[#243a48] text-white"
+                : "text-[#243a48] bg-transparent"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
       <div className='bg-[#262c32] p-4'>
         {/* Bet Status Dropdown */}

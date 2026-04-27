@@ -230,30 +230,44 @@ function ProfitLoss() {
   const mapProfitLossData = (apiData) => {
     if (!apiData || !Array.isArray(apiData)) return [];
 
-    return apiData.map((bet, idx) => ({
-      id: bet.betId || bet._id || bet.id || `profit-loss-${idx}`,
-      gameName: bet.gameName || 'Unknown Game',
-      match: bet.eventName || 'Unknown Match',
-      market: bet.marketName || 'Unknown Market',
-      type: bet.otype === 'back' ? 'Back' : bet.otype === 'lay' ? 'Lay' : bet.otype || 'Unknown',
-      selection: bet.teamName || 'Unknown Selection',
-      oddsReq: bet.odds || 0, // Not available in new API response
-      stake: bet.stake || 0,
-      backsubtotal: bet.otype === 'back'|| bet.otype === 'Yes' ? bet.stake : 0,
-      laysubtotal: bet.otype === 'lay'|| bet.otype === 'No' ? bet.stake : 0,
-      commission: bet.commission || 0, // Not available in new API response
-      avgOdds: 0, // Not available in new API response
-      matched: bet.profit || 0,
-      placed: bet.date ? new Date(bet.date).toLocaleString() : '',
-      taken: bet.date ? new Date(bet.date).toLocaleString() : '',
-      profit: bet.profit || 0,
-      status: getStatusFromProfit(bet.profit),
-      date: bet.date
-        ? new Date(bet.date).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0],
-      winAmount: bet.winAmount || 0,
-      lossAmount: bet.lossAmount || 0,
-    }));
+    return apiData.map((bet, idx) => {
+      const stake = Number(bet.stake ?? 0);
+      const expectedProfit = Number(bet.betAmount ?? bet.stake ?? 0);
+      const expectedLoss = Number(bet.price ?? 0);
+      const statusCode = Number(bet.status ?? 1);
+      const actualNet = Number(bet.profit ?? bet.myProfit ?? 0);
+
+      return {
+        id: bet.betId || bet._id || bet.id || `profit-loss-${idx}`,
+        gameName: bet.gameName || 'Unknown Game',
+        match: bet.eventName || 'Unknown Match',
+        market: bet.marketName || 'Unknown Market',
+        type: bet.otype === 'back' ? 'Back' : bet.otype === 'lay' ? 'Lay' : bet.otype || 'Unknown',
+        selection: bet.teamName || 'Unknown Selection',
+        oddsReq: bet.odds || 0,
+        stake,
+        backsubtotal: bet.otype === 'back' || bet.otype === 'Yes' ? stake : 0,
+        laysubtotal: bet.otype === 'lay' || bet.otype === 'No' ? stake : 0,
+        commission: bet.commission || 0,
+        avgOdds: 0,
+        matched: actualNet,
+        placed: bet.date ? new Date(bet.date).toLocaleString() : '',
+        taken: bet.date ? new Date(bet.date).toLocaleString() : '',
+        profit: actualNet,
+        status: getStatusFromProfit(actualNet),
+        rawStatus: statusCode,
+        expectedProfit,
+        expectedLoss,
+        actualNet,
+        actualProfit: Math.max(actualNet, 0),
+        actualLoss: Math.max(-actualNet, 0),
+        date: bet.date
+          ? new Date(bet.date).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+        winAmount: bet.winAmount || 0,
+        lossAmount: bet.lossAmount || 0,
+      };
+    });
   };
 
   // ----------------------- API CALL -------------------------

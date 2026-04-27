@@ -26,21 +26,39 @@ function CasinoDownlineBets() {
 
       setLoading(true);
       try {
-        const queryParams = new URLSearchParams({
-          id: targetUserId,
-          page: 1,
-          limit: 200,
-        });
+        const limit = 500;
+        let page = 1;
+        let allBets = [];
+        let totalPages = 1;
 
-        if (startDate) queryParams.append("startDate", startDate);
-        if (endDate) queryParams.append("endDate", endDate);
+        do {
+          const queryParams = new URLSearchParams({
+            id: targetUserId,
+            page: String(page),
+            limit: String(limit),
+          });
 
-        const response = await axiosInstance.get(
-          `/casino/all-bet-history?${queryParams.toString()}`
-        );
+          if (startDate) queryParams.append("startDate", startDate);
+          if (endDate) queryParams.append("endDate", endDate);
 
-        if (response.data?.success) {
-          setBets(response.data.data || []);
+          const response = await axiosInstance.get(
+            `/casino/all-bet-history?${queryParams.toString()}`
+          );
+
+          if (!response.data?.success) {
+            break;
+          }
+
+          const pageData = response.data.data || [];
+          allBets = [...allBets, ...pageData];
+          totalPages = response.data?.pagination?.pages || 1;
+          page += 1;
+        } while (page <= totalPages);
+
+        if (allBets.length) {
+          setBets(allBets);
+        } else {
+          setBets([]);
         }
       } catch (error) {
         console.error("Error fetching downline casino bets:", error);

@@ -428,6 +428,22 @@ function CurrentBets() {
     user: "CL",
   };
  const user = useSelector(state => state.auth.user);
+  const mapSelectedTypeToSelectedGame = (type) => {
+    switch (type) {
+      case "Exchange":
+        return "matchoods";
+      case "FancyBet":
+        return "Normal";
+      case "TiedMatch":
+        return "Tied Match";
+      case "BookMaker":
+        return "Bookmaker";
+      case "Casino":
+        return "Casino";
+      default:
+        return "";
+    }
+  };
   useEffect(() => {
     if (!userId) return;
     const fetchUserInfo = async () => {
@@ -445,9 +461,17 @@ function CurrentBets() {
   // Fetch current bet history (no UI change; dates optional and omitted)
   useEffect(() => {
     if (userId) {
-      dispatch(geAllBetHistory({ id: userId, page: 1, limit: 50, selectedGame: "", selectedVoid: "unsettel" }));
+      dispatch(
+        geAllBetHistory({
+          id: userId,
+          page: 1,
+          limit: 50,
+          selectedGame: mapSelectedTypeToSelectedGame(selectedType),
+          selectedVoid: "unsettel",
+        })
+      );
     }
-  }, [userId, dispatch]);
+  }, [userId, selectedType, dispatch]);
 
   // Map API data into the existing table shape
   useEffect(() => {
@@ -510,10 +534,6 @@ function CurrentBets() {
                 onClick={()=>setselectedType("FancyBet")}
                 >
                   FancyBet</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'SportsBook'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                onClick={()=>setselectedType("SportsBook")}
-                >
-                  SportsBook</li>
                 <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'BookMaker'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
                 onClick={()=>setselectedType("BookMaker")}
                 >
@@ -522,14 +542,10 @@ function CurrentBets() {
                 onClick={()=>setselectedType("Casino")}
                 >
                   Casino</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'Toss'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                onClick={()=>setselectedType("Toss")}
+                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'TiedMatch'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
+                onClick={()=>setselectedType("TiedMatch")}
                 >
-                  Toss</li>
-                <li className={`text-[#3b5160] text-[13px] font-[700] px-4 py-1 rounded-t-sm  border border-[#3b5160] cursor-pointer ${selectedType === 'Tie'? 'bg-[#ffa00c]': 'bg-gradient-to-t from-[#eee] to-[#fff]'}`}
-                onClick={()=>setselectedType("Tie")}
-                >
-                  Tie</li>
+                  TiedMatch</li>
               </ul>
             </div>
             <div className='mt-2' >
