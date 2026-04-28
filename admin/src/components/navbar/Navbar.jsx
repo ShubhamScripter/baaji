@@ -67,6 +67,11 @@ const navData = [
     path: "/Betlist"
   },
   {
+    label: "Risk Management",
+    icon: "FaListUl",
+    path: "/RiskManagement"
+  },
+  {
     label: "BetListLive",
     icon: "FaBroadcastTower",
     path: "/BetListLive"

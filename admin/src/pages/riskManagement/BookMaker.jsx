@@ -4,14 +4,14 @@ import { motion } from "framer-motion"; //eslint-disable-line
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { FaCirclePlus, FaCircleMinus } from "react-icons/fa6";
 import { FaArrowAltCircleRight } from "react-icons/fa";
-import { fetchMatchOddsSummary } from "../../store/riskSlice";
+import { fetchBookmakerSummary } from "../../store/riskSlice";
 import {
   masterBookReducer,
   masterBookReducerDownline,
 } from "../../store/marketAnalyzeReducer";
 import { useNavigate } from "react-router";
 
-// "India v Pakistan" -> ["India", "Pakistan"]
+
 const getTeams = (eventName = "") => {
   const parts = eventName.split(/\s+v\s+/i).map((p) => p.trim());
   return [parts[0] || "", parts[1] || ""];
@@ -254,13 +254,13 @@ const getSportSlug = (sport = "") => {
 };
 
 
-function MatchOdds() {
+function BookMaker() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [selectedEvent, setSelectedEvent] = useState("");
   const [selectedGametype, setSelectedGametype] = useState("");
   const [selectedSport, setSelectedSport] = useState("");
-  const { matchOdds, matchOddsLoading, matchOddsError } = useSelector(
+  const { bookmaker, bookmakerLoading, bookmakerError } = useSelector(
     (state) => state.risk
   );
   const { masterData, masterDataDownline, loader } = useSelector(
@@ -275,12 +275,12 @@ function MatchOdds() {
   const [masterContext, setMasterContext] = useState(null);
 
   useEffect(() => {
-    dispatch(fetchMatchOddsSummary());
+    dispatch(fetchBookmakerSummary());
   }, [dispatch]);
 
   const matchData = useMemo(
-    () => (matchOdds || []).map(buildMatch),
-    [matchOdds]
+    () => (bookmaker || []).map(buildMatch),
+    [bookmaker]
   );
 
   const groupedBySport = useMemo(() => groupBySport(matchData), [matchData]);
@@ -390,17 +390,17 @@ function MatchOdds() {
 
   return (
     <div className="mt-6 rounded-[5px]">
-      <h2 className="text-[#243a48] text-base font-bold">Match Odds</h2>
+      <h2 className="text-[#243a48] text-base font-bold">BookMaker</h2>
 
-      {matchOddsLoading && (
+      {bookmakerLoading && (
         <div className="px-3 py-2 text-xs text-gray-600">Loading...</div>
       )}
 
-      {matchOddsError && !matchOddsLoading && (
-        <div className="px-3 py-2 text-xs text-red-600">{matchOddsError}</div>
+      {bookmakerError && !bookmakerLoading && (
+        <div className="px-3 py-2 text-xs text-red-600">{bookmakerError}</div>
       )}
 
-      {!matchOddsLoading && !matchOddsError && !hasData && (
+      {!bookmakerLoading && !bookmakerError && !hasData && (
         <div className="px-3 py-2 text-xs text-gray-500">No data available</div>
       )}
 
@@ -578,4 +578,4 @@ function MatchOdds() {
   );
 }
 
-export default MatchOdds;
+export default BookMaker;

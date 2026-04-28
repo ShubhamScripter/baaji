@@ -1,187 +1,191 @@
-import React, { useState } from "react";
-import '@fortawesome/fontawesome-free/css/all.min.css';
+import React, { useEffect, useMemo, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import "@fortawesome/fontawesome-free/css/all.min.css";
+import { FaCirclePlus, FaCircleMinus } from "react-icons/fa6";
+import { FaArrowAltCircleRight } from "react-icons/fa";
+import { fetchFancySummary } from "../../store/riskSlice";
 
-const matchData = [
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 10:04:20 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "20 over runs BD 2",
-    "playerPL": {
-      "min": -2537.5,
-      "max": 2526.8
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 9:46:54 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "4 over run BAD",
-    "playerPL": {
-      "min": -20,
-      "max": 20
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 9:47:20 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "6 over runs BAD",
-    "playerPL": {
-      "min": -112,
-      "max": 112
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 11:18:49 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "Only 19 over run BD",
-    "playerPL": {
-      "min": -20,
-      "max": 20
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 9:48:50 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "5 over run BAD",
-    "playerPL": {
-      "min": -100,
-      "max": 100
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 11:23:58 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "19 over run BD",
-    "playerPL": {
-      "min": -16,
-      "max": 16
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 11:23:55 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "Only 20 over run BD",
-    "playerPL": {
-      "min": -400,
-      "max": 400
-    },
-    "downlinePL": "Book"
-  },
-  {
-    "sport": "Cricket",
-    "marketDate": "7/28/2025, 11:20:23 AM",
-    "event": "Band-E-Amir Dragons v Boost Defenders",
-    "marketName": "20 over Run bhav BD",
-    "playerPL": {
-      "min": -37.5,
-      "max": 50
-    },
-    "downlinePL": "Book"
-  }
-]
+const formatDate = (value) => {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString();
+};
 
+const buildFancy = (item, idx) => ({
+  idx,
+  sport: item.sport || "Others",
+  date: formatDate(item.date),
+  eventName: item.eventName || "",
+  marketName: item.marketName || "",
+  gameId: item.gameId,
+  minBetAmount: item.minBetAmount ?? 0,
+  maxBetAmount: item.maxBetAmount ?? 0,
+  totalMatched: item.totalMatched ?? 0,
+  openBetCount: item.openBetCount ?? 0,
+});
 
-function FancyBet() {
-  const [expandedRows, setExpandedRows] = useState({});
+const groupBySport = (items) => {
+  const groups = {};
+  items.forEach((item) => {
+    const key = item.sport;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  });
+  return groups;
+};
 
-  const toggleRow = (index) => {
-    setExpandedRows((prev) => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
-  };
+const amountClass = (value) =>
+  Number(value) < 0 ? "text-red-600" : "text-green-600";
 
-  return (
-    <div
-      className="mt-4 bg-[#dddcd7] rounded-[5px]"
-      style={{ boxShadow: "0 2px 0 0 #fff, inset 0 2px 0 0 #0000001a" }}
-    >
-      <h2 className="text-[#243a48] text-base font-bold p-2 mx-2">Fancy Bet</h2>
-      <div className="mx-2 p-2">
-        <table className="min-w-full text-xs text-left bg-white">
+const SportHeader = () => (
+  <thead>
+    <tr className="bg-gray-600 text-white w-full text-[13px]">
+      <th colSpan={2} className="w-[70%] text-left px-2 py-1.5 capitalize">Sports</th>
+      <th className="w-[10%] px-2 py-1.5 text-left">Min</th>
+      <th className="w-[10%] px-2 py-1.5 text-left">Max</th>
+      <th className="w-[10%] px-2 py-1.5 border-l border border-gray-200">Downline P/L</th>
+    </tr>
+  </thead>
+);
+
+const FancyRow = ({ match, isOpen, onToggle }) => (
+  <tr className="w-full text-[13px] border border-gray-300">
+    <td className="w-[10%] px-2 py-1.5 text-center">{match.date}</td>
+    <td className="w-[60%] text-left px-2 py-1.5 border-l border-gray-300">
+      <div className="flex gap-2 items-center">
+        <button type="button" onClick={onToggle} className="flex items-center">
+          {isOpen ? (
+            <FaCircleMinus className="text-blue-500 size-4" />
+          ) : (
+            <FaCirclePlus className="text-blue-500 size-4" />
+          )}
+        </button>
+        <span className="text-blue-700 underline">{match.eventName}</span>
+        <FaArrowAltCircleRight className="text-gray-500 size-3" />
+        <span className="text-blue-700 underline">{match.marketName}</span>
+      </div>
+    </td>
+    <td className={`w-[10%] px-2 py-1.5 ${amountClass(match.minBetAmount)}`}>
+      {match.minBetAmount}
+    </td>
+    <td className={`w-[10%] px-2 py-1.5 ${amountClass(match.maxBetAmount)}`}>
+      {match.maxBetAmount}
+    </td>
+    <td className="w-[10%] px-2 py-3 border-l border-gray-300 text-center">
+      <span className="bg-yellow-100/50 border border-yellow-400 py-2 px-5">
+        Book
+      </span>
+    </td>
+  </tr>
+);
+
+const FancyDetails = ({ match }) => (
+  <tr>
+    <td></td>
+    <td colSpan={5} className="pb-2 bg-gray-100">
+      <div className="max-w-[80%] mx-auto bg-gray-200">
+        <table className="w-full text-xs">
           <thead>
             <tr>
-              <th rowSpan={2} className="px-2 py-2">Sports</th>
-              <th rowSpan={2} className="px-2 py-2">Market Date</th>
-              <th rowSpan={2} className="px-2 py-2">Event/Market Name</th>
-              <th colSpan={3} className="bg-[#f3dfb0] px-2 py-2 border-y border-[#7e97a7] text-center">Player P/L</th>
-              <th rowSpan={2} className="px-2 py-2">Downline P/L</th>
-            </tr>
-            <tr>
-              <th className="bg-[#f3dfb0] px-2 py-2 min-w-[60px]">Min</th>
-              <th className="bg-[#f3dfb0] px-2 py-2 min-w-[60px]"></th>
-              <th className="bg-[#f3dfb0] px-2 py-2 min-w-[60px]">Max</th>
+              <th className="text-left px-2 py-1 w-[55%]" colSpan={2}></th>
+              <th className="text-center px-2 py-1 w-[15%]">Yes</th>
+              <th className="text-center px-2 py-1 w-[15%]">No</th>
+              <th className="text-center px-2 py-1 w-[15%]"></th>
             </tr>
           </thead>
-          <tbody className="border-y border-[#7e97a7]">
-            {matchData.map((match, i) => (
-              <React.Fragment key={i}>
-                <tr className="border-y border-[#7e97a7] ">
-                  <td className="px-2 py-2 border-r border-r-[#7e97a7]">{match.sport}</td>
-                  <td className="px-2 py-2 border-r border-r-[#7e97a7]">{match.marketDate}</td>
-                  <td className="px-2 py-2 border-r border-r-[#7e97a7]">
-                    <button
-                      onClick={() => toggleRow(i)}
-                      type="button"
-                      className="btn btn-primary angle-up down-up mr-2 rounded-sm border border-[#bbb] bg-gradient-to-b from-white to-gray-100 p-1"
-                    >
-                      <i className={`fas fa-angle-${expandedRows[i] ? "up" : "down"}`}></i>
-                    </button>
-                    <strong>{match.event}</strong>{" "}
-                    <span className="ml-2 text-xs text-[#568bc8]">{match.marketName}</span>
-                  </td>
-                  <td className={`px-2 py-2 border-r border-r-[#7e97a7] ${match.playerPL.min < 0 ? "text-red-600" : "text-green-600"}`}>
-                    ({match.playerPL.min})
-                  </td>
-                  <td className={`px-2 py-2 border-r border-r-[#7e97a7] `}>
-                    
-                  </td>
-                  <td className={`px-2 py-2 border-r border-r-[#7e97a7] ${match.playerPL.max < 0 ? "text-red-600" : "text-green-600"}`}>
-                    ({match.playerPL.max})
-                  </td>
-                  <td className="px-2 py-2 border-r border-r-[#7e97a7] text-center">
-                    <button
-                      className="bg-[#ffcc2f] border border-[#cb8009] text-black px-3 py-1 rounded shadow"
-                    >
-                      Book
-                    </button>
-                  </td>
-                </tr>
-                {expandedRows[i] && (
-                  <tr className="">
-                    <td className="border-r border-r-[#7e97a7]  bg-white"></td>
-                    <td className="border-r border-r-[#7e97a7] bg-white"></td>
-                    <td className="border-r border-r-[#7e97a7] pl-8 pb-2">
-                     
-                    </td>
-                    <td className="bg-[#72bbef] text-center border-r border-r-[#7e97a7]">
-                        <div>--</div>
-                        <div>--</div>
-                    </td>
-                    <td className="border-r border-r-[#7e97a7]"></td>
-                    <td className="bg-[#ffb6c1] text-center border-r border-r-[#7e97a7]">
-                        <div>--</div>
-                        <div>--</div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
+          <tbody className="border border-y border-y-[#7e97a7]">
+            <tr className="bg-white border-y border-y-[#7e97a7]">
+              <td className="px-2 py-1 border-r border-r-[#7e97a7] w-[40%]">
+                <span className="text-xs font-bold">{match.marketName}</span>
+              </td>
+              <td className="text-center px-2 py-1 w-[15%]"></td>
+              <td className="text-center px-2 py-1 border-r border-r-[#7e97a7] bg-[#72bbef] w-[15%]">
+                <div>--</div>
+                <div>--</div>
+              </td>
+              <td className="text-center px-2 py-1 border-r border-r-[#7e97a7] bg-[#faa9ba] w-[15%]">
+                <div>--</div>
+                <div>--</div>
+              </td>
+              <td className="text-center px-2 py-1 w-[15%]"></td>
+            </tr>
           </tbody>
         </table>
       </div>
+    </td>
+  </tr>
+);
+
+const SportTable = ({ sport, matches, activeRows, onToggle }) => (
+  <table className="w-full mt-3">
+    <SportHeader sport={sport} />
+    <tbody>
+      {matches.map((match) => {
+        const isOpen = activeRows === match.idx;
+        return (
+          <React.Fragment key={match.gameId ? `${match.gameId}-${match.idx}` : match.idx}>
+            <FancyRow
+              match={match}
+              isOpen={isOpen}
+              onToggle={() => onToggle(match.idx)}
+            />
+            {isOpen && <FancyDetails match={match} />}
+          </React.Fragment>
+        );
+      })}
+    </tbody>
+  </table>
+);
+
+function FancyBet() {
+  const dispatch = useDispatch();
+  const { fancy, fancyLoading, fancyError } = useSelector(
+    (state) => state.risk
+  );
+  const [activeRows, setActiveRows] = useState(null);
+
+  useEffect(() => {
+    dispatch(fetchFancySummary());
+  }, [dispatch]);
+
+  const fancyData = useMemo(
+    () => (Array.isArray(fancy) ? fancy : []).map(buildFancy),
+    [fancy]
+  );
+
+  const groupedBySport = useMemo(() => groupBySport(fancyData), [fancyData]);
+
+  const toggleRow = (index) => {
+    setActiveRows((prev) => (prev === index ? null : index));
+  };
+
+  const hasData = fancyData.length > 0;
+
+  return (
+    <div className="mt-10 rounded-[5px]">
+      <h2 className="text-[#243a48] text-base font-bold">Fancy Bet</h2>
+
+      {fancyLoading && (
+        <div className="px-3 py-2 text-xs text-gray-600">Loading...</div>
+      )}
+
+      {fancyError && !fancyLoading && (
+        <div className="px-3 py-2 text-xs text-red-600">{fancyError}</div>
+      )}
+
+      {!fancyLoading && !fancyError && !hasData && (
+        <div className="px-3 py-2 text-xs text-gray-500">No data available</div>
+      )}
+
+      {Object.entries(groupedBySport).map(([sport, matches]) => (
+        <SportTable
+          key={sport}
+          sport={sport}
+          matches={matches}
+          activeRows={activeRows}
+          onToggle={toggleRow}
+        />
+      ))}
     </div>
   );
 }
