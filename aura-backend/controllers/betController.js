@@ -4078,7 +4078,7 @@ export const getPendingBetsAmounts = async (req, res) => {
 
 export const getFancyMasterBook = async (req, res) => {
   const { id } = req;
-  const { gameId, teamName, gameType, minScore, maxScore } = req.query;
+  const { gameId, teamName, gameType, minScore, maxScore, userId } = req.query;
 
   try {
     if (!gameId || !teamName || !gameType) {
@@ -4095,16 +4095,25 @@ export const getFancyMasterBook = async (req, res) => {
       });
     }
 
-    // Fetch pending bets for this specific fancy market
-    // Same query pattern as placeFancyBet (betController.js:1237-1243)
-    const bets = await betModel.find({
-      userId: id,
+    // For user: always use their own id (ignore userId param for security)
+    // For admin: use the userId query param, or omit userId filter to see ALL bets
+    let targetUserId;
+    if (req.role === 'user') {
+      targetUserId = id;
+    } else {
+      targetUserId = userId || null; // admin can optionally filter by userId
+    }
+    const query = {
       gameId,
       teamName,
       gameType,
       status: 0,
       isCashedOut: { $ne: true },
-    });
+    };
+    if (targetUserId) {
+      query.userId = targetUserId;
+    }
+    const bets = await betModel.find(query);
 
     if (!bets || bets.length === 0) {
       return res.status(200).json({
@@ -4140,7 +4149,7 @@ export const getFancyMasterBook = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error generating fancy master book:', error);
+    logger.error('Error generating fancy master book:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };

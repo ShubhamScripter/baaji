@@ -247,7 +247,7 @@ export const getFancyMasterBook = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      let url = `/fancy-master-book?gameId=${gameId}&teamName=${encodeURIComponent(teamName)}&gameType=${gameType}`;
+      let url = `/user/fancy-master-book?gameId=${gameId}&teamName=${encodeURIComponent(teamName)}&gameType=${gameType}`;
       if (minScore != null) url += `&minScore=${minScore}`;
       if (maxScore != null) url += `&maxScore=${maxScore}`;
       const response = await api.get(url, { withCredentials: true });
@@ -332,6 +332,7 @@ const marketSlice = createSlice({
       .addCase(fetchCricketBatingData.pending, (state) => {
         state.loader = true;
         state.error = null;
+        state.battingData = [];
       })
       .addCase(fetchCricketBatingData.fulfilled, (state, action) => {
         state.loader = false;
@@ -346,6 +347,7 @@ const marketSlice = createSlice({
       .addCase(fetchTannisBatingData.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.battingData = [];
       })
       .addCase(fetchTannisBatingData.fulfilled, (state, action) => {
         state.loading = false;
@@ -359,6 +361,7 @@ const marketSlice = createSlice({
       .addCase(fetchSoccerBatingData.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.battingData = [];
       })
       .addCase(fetchSoccerBatingData.fulfilled, (state, action) => {
         state.loading = false;
