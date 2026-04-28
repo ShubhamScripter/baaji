@@ -10,10 +10,12 @@ import f from '../../assets/icon/f.png';
 import s from '../../assets/icon/s.png';
 import y from '../../assets/icon/youtube.png';
 import { useNavigate } from 'react-router-dom';
+import useDeactivatedMatches from '../../hooks/useDeactivatedMatches';
 
 function Soccer({ activeTab }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { isMatchVisible } = useDeactivatedMatches();
   const { soccerData, soccerInplayData, soccerLoading, soccerError } = useSelector((state) => state.soccer || {});
   
   const [openIndexes, setOpenIndexes] = useState([0]);
@@ -22,6 +24,7 @@ function Soccer({ activeTab }) {
 
   // Filter matches based on activeTab (support both iplay and inplay from API)
   const filteredMatches = (Array.isArray(sourceMatches) ? sourceMatches : []).filter(match => {
+    if (!isMatchVisible("soccer", match?.id)) return false;
     const matchDate = new Date(match.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);

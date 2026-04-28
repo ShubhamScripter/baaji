@@ -1583,6 +1583,7 @@ export const getprofitlossofdownlineofreportlistUserDataV2 = async (req, res) =>
     startTime,
     endTime,
     targetUserId,
+    selectedGame = '',
     betStatus = 'Settled',
   } = req.query;
 
@@ -1646,6 +1647,28 @@ export const getprofitlossofdownlineofreportlistUserDataV2 = async (req, res) =>
       } else {
         historyQuery.date = getDateRangeUTC(startDate, endDate);
       }
+    }
+
+    const selectedGameTrimmed = String(selectedGame).trim();
+    const selectedGameLower = selectedGameTrimmed.toLowerCase();
+    const gameTypeMappings = {
+      exchange: ['Match Odds', 'matchoods'],
+      'match odds': ['Match Odds', 'matchoods'],
+      matchoods: ['Match Odds', 'matchoods'],
+      fancybet: ['Normal'],
+      fancy: ['Normal'],
+      normal: ['Normal'],
+      tiedmatch: ['Tied Match'],
+      'tied match': ['Tied Match'],
+      tie: ['Tied Match'],
+      bookmaker: ['Bookmaker'],
+    };
+
+    const mappedGameTypes = gameTypeMappings[selectedGameLower] || null;
+    if (mappedGameTypes) {
+      historyQuery.gameType = { $in: mappedGameTypes };
+    } else if (selectedGameTrimmed && selectedGameLower !== 'casino') {
+      historyQuery.gameName = selectedGameTrimmed;
     }
 
     const historyRows = await betHistoryModel

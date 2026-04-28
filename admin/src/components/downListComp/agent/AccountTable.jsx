@@ -94,7 +94,7 @@ function AccountTable({ users }) {
                   </span>
                 </td>
                 <td className="px-2 py-2">{(user.availBal ?? 0).toLocaleString()}</td>
-                <td className="px-2 py-2">{(user.playerBal ?? 0).toLocaleString()}</td>
+                <td className="px-2 py-2">{(user.totalExposure ?? 0).toLocaleString()}</td>
                 <td className="px-2 py-2">{user.refPL ?? 0}</td>
                 <td className="px-2 py-2">
                   <div className="bg-[#e5f1dc] text-[#508d0e] px-2 py-1 border border-[#bedca7] rounded-lg text-[12px] font-semibold flex gap-1 items-center">

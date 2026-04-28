@@ -10,10 +10,12 @@ import y from '../../assets/icon/youtube.png';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from "react-redux";
 import { fetchTennisData, fetchTennisInplayData } from '../../features/sports/tennisSlice';
+import useDeactivatedMatches from '../../hooks/useDeactivatedMatches';
 
 function Tennis({ activeTab }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { isMatchVisible } = useDeactivatedMatches();
 
   const { data, inplayData, loading, tennisError } = useSelector((state) => state.tennis);
   const [openIndexes, setOpenIndexes] = useState([0]);
@@ -22,6 +24,7 @@ function Tennis({ activeTab }) {
 
   // Filter matches based on activeTab (support both iplay and inplay from API)
   const filteredMatches = (Array.isArray(sourceMatches) ? sourceMatches : []).filter(match => {
+    if (!isMatchVisible("tennis", match?.id)) return false;
     const matchDate = new Date(match.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);

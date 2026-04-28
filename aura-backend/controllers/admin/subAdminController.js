@@ -9,6 +9,7 @@ import betModel from '../../models/betModel.js';
 import creditRefHistory from '../../models/creditRefHistory.js';
 import DepositHistory from '../../models/depositeHistoryModel.js';
 import LoginHistory from '../../models/loginHistory.js';
+import DeactivatedMatch from '../../models/matchSettingsModel.js';
 import passwordHistory from '../../models/passwordHistory.js';
 import CasinoBetHistory from '../../models/casinoBetHistory.model.js';
 import SubAdmin from '../../models/subAdminModel.js';
@@ -2130,8 +2131,83 @@ export const getAllDownlineBets = async (req, res) => {
       filter.createdAt = { $gte: start, $lte: end };
     }
 
-    if (selectedGame) {
-      filter.gameName = selectedGame;
+    const selectedGameTrimmed = (selectedGame || '').toString().trim();
+    const selectedGameLower = selectedGameTrimmed.toLowerCase();
+    const gameTypeMappings = {
+      exchange: ['Match Odds', 'matchoods'],
+      'match odds': ['Match Odds', 'matchoods'],
+      matchoods: ['Match Odds', 'matchoods'],
+      fancybet: ['Normal'],
+      fancy: ['Normal'],
+      normal: ['Normal'],
+      tiedmatch: ['Tied Match'],
+      'tied match': ['Tied Match'],
+      tie: ['Tied Match'],
+      bookmaker: ['Bookmaker'],
+      casino: ['Casino'],
+      'casino game': ['Casino'],
+    };
+    const mappedGameTypes = gameTypeMappings[selectedGameLower] || null;
+    const isCasinoFilter = selectedGameLower === 'casino' || selectedGameLower === 'casino game';
+
+    if (isCasinoFilter) {
+      const casinoFilter = { userId: { $in: userIds.map((u) => u.toString()) } };
+
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1);
+        casinoFilter.createdAt = { $gte: start, $lte: end };
+      }
+
+      if (selectedVoid === 'unsettel') {
+        casinoFilter.win_amount = 0;
+      } else if (selectedVoid === 'settel') {
+        casinoFilter.change = { $ne: 0 };
+      }
+
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+
+      const casinoRows = await CasinoBetHistory.find(casinoFilter)
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean();
+
+      const totalCount = await CasinoBetHistory.countDocuments(casinoFilter);
+      const mappedCasinoRows = casinoRows.map((row) => ({
+        _id: row._id,
+        userId: row.userId,
+        userName: row.userName,
+        gameType: 'Casino',
+        gameName: 'Casino',
+        eventName: row.providerRaw?.game_name || row.game_uid || 'Casino',
+        marketName: 'Casino',
+        teamName: row.game_uid || '-',
+        otype: row.providerRaw?.type || 'casino',
+        xValue: row.providerRaw?.odds || 0,
+        price: row.bet_amount || 0,
+        resultAmount: row.change || 0,
+        status: row.win_amount > 0 || row.change !== 0 ? 1 : 0,
+        ip: row.providerRaw?.ip || '-',
+        createdAt: row.createdAt,
+      }));
+
+      return res.status(200).json({
+        success: true,
+        totalUsers: userIds.length,
+        totalBets: mappedCasinoRows.length,
+        data: mappedCasinoRows,
+        totalPages: Math.ceil(totalCount / limitNum),
+      });
+    }
+
+    if (mappedGameTypes) {
+      filter.gameType = { $in: mappedGameTypes };
+    } else if (selectedGameTrimmed) {
+      // Preserve old behaviour for pages filtering by gameName (e.g. Cricket Game, Soccer Game).
+      filter.gameName = selectedGameTrimmed;
     }
     // Filter by selectedVoid if provided
     if (selectedVoid === 'settel') {
@@ -2488,6 +2564,101 @@ console.log("game is:",game);
     }
   } catch (error) {
     console.error('Error updating game lock:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
+export const updateMatchVisibility = async (req, res) => {
+  try {
+    const { matchId, sport, matchName, marketType, isEnabled } = req.body;
+
+    if (!matchId || typeof matchId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'matchId is required',
+      });
+    }
+
+    if (!sport || !['cricket', 'soccer', 'tennis'].includes(sport)) {
+      return res.status(400).json({
+        success: false,
+        message: 'sport must be one of cricket, soccer or tennis',
+      });
+    }
+
+    if (!marketType || !['matchOdds', 'bookmaker', 'fancy'].includes(marketType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'marketType must be one of matchOdds, bookmaker or fancy',
+      });
+    }
+
+    if (typeof isEnabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isEnabled must be boolean',
+      });
+    }
+
+    const normalizedMatchId = String(matchId).trim();
+    let entry = await DeactivatedMatch.findOne({ matchId: normalizedMatchId });
+
+    if (!entry) {
+      entry = await DeactivatedMatch.create({
+        matchId: normalizedMatchId,
+        sport,
+        matchName: matchName || '',
+        marketLocks: {
+          matchOdds: true,
+          bookmaker: true,
+          fancy: true,
+        },
+      });
+    }
+
+    if (!entry.marketLocks) {
+      entry.marketLocks = {
+        matchOdds: true,
+        bookmaker: true,
+        fancy: true,
+      };
+    }
+
+    entry.sport = sport;
+    if (matchName) entry.matchName = matchName;
+    entry.marketLocks[marketType] = isEnabled;
+    entry.markModified('marketLocks');
+
+    const allEnabled =
+      entry.marketLocks.matchOdds === true &&
+      entry.marketLocks.bookmaker === true &&
+      entry.marketLocks.fancy === true;
+
+    if (allEnabled) {
+      await DeactivatedMatch.deleteOne({ matchId: normalizedMatchId });
+    } else {
+      await entry.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Match market visibility updated successfully',
+      data: {
+        matchId: normalizedMatchId,
+        sport,
+        marketType,
+        isEnabled,
+        marketLocks: allEnabled
+          ? { matchOdds: true, bookmaker: true, fancy: true }
+          : entry.marketLocks,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating match visibility:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error',

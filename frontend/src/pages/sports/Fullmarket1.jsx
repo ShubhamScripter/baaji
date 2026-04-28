@@ -337,6 +337,7 @@ import { div } from 'motion/react-client';
 import Spinner from '../../components/Spinner';
 import { toast } from 'react-hot-toast';
 import { getSportsMediaUrls, SPORTS_MEDIA_TYPE } from '../../utils/sportsMediaUrls';
+import useMatchMarketLocks from '../../hooks/useMatchMarketLocks';
 function Fullmarket1() {
   const dispatch = useDispatch();
   const { gameid } = useParams() || {};
@@ -372,6 +373,11 @@ function Fullmarket1() {
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [liveStreamUrl, setLiveStreamUrl] = useState("");
   const [scorecardUrl, setScorecardUrl] = useState("");
+  const { marketLocks } = useMatchMarketLocks({
+    sport: "soccer",
+    gameid,
+    matchName: match,
+  });
   const { loading, successMessage, errorMessage } = useSelector(
     (state) => state.bet
   );
@@ -1027,7 +1033,7 @@ const oddevenData =
               No markets available for this match. Try again later.
             </div>
           )}
-          {matchOddsList.length > 0 && (
+          {marketLocks.matchOdds && matchOddsList.length > 0 && (
             <>
             <div className="bg-[#17934e] h-10 p-2 pl-4 flex items-center gap-2">
             <GrStarOutline className="text-white" />
@@ -1050,14 +1056,14 @@ const oddevenData =
           )}
           <div className='bg-[#eef6fb] pb-5'>
             {/* Bookmaker Section */}
-            {BookmakerList.length > 0 && (
+            {marketLocks.bookmaker && BookmakerList.length > 0 && (
               <Bookmakers openBetSlip={openBetSlip} BookmakerList={BookmakerList} gameid={gameid} match={match} selectedBetData={selectedBetData} gameName="Soccer Game"/>
             )}
             {/* Fancybet & sportsbook Section */}
-            {(fancy1Data.length > 0 || oddevenData.length > 0) && (
+            {(marketLocks.fancy ? fancy1Data.length > 0 : false || oddevenData.length > 0) && (
               <div className='px-4 pt-4'>
                 <div className='bg-black h-12  pl-4 flex  items-center rounded-t-2xl'>
-                  {fancy1Data.length > 0 && (
+                  {marketLocks.fancy && fancy1Data.length > 0 && (
                     <div className={`rounded-t-xl p-2 mt-4 text-white ${isFacncyActive ? 'bg-[#17934e]' : 'bg-transparent'}`}
                       onClick={() => {
                         setSelected("Fancybet");

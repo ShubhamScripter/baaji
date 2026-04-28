@@ -7,6 +7,8 @@ import { fetchCricketData, fetchCricketInplayData } from "../../features/sports/
 import { fetchSoccerData, fetchSoccerInplayData } from "../../features/sports/soccerSlice";
 import { fetchTennisData, fetchTennisInplayData } from "../../features/sports/tennisSlice";
 import { useNavigate } from 'react-router-dom';
+import api from "../../utils/axiosConfig";
+import useDeactivatedMatches from "../../hooks/useDeactivatedMatches";
 import Inplay from './Inplay';
 import Today from './Today';
 import Tomorrow from './Tomorrow';
@@ -44,9 +46,37 @@ const categories = [
   { name: "League", icon: <HiTrophy size={35} /> },
 ];
 
+const defaultVisibleSports = {
+  cricket: true,
+  soccer: true,
+  tennis: true,
+};
+
+const parseEnabledSports = (gameLock = []) => {
+  const lockMap = {};
+  gameLock.forEach((entry) => {
+    const key = String(entry?.game || "").toLowerCase().replace(/\s+/g, "");
+    lockMap[key] = Boolean(entry?.lock);
+  });
+
+  return {
+    cricket: lockMap.cricket ?? true,
+    soccer: lockMap.soccer ?? true,
+    tennis: lockMap.tennis ?? true,
+  };
+};
+
+const getUserGameLock = (userObj) => {
+  if (Array.isArray(userObj?.gamelock)) return userObj.gamelock;
+  if (Array.isArray(userObj?.settings?.gamelock)) return userObj.settings.gamelock;
+  return null;
+};
+
 function Main() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const { isMatchVisible } = useDeactivatedMatches();
 
   const cricket = useSelector(state => state.cricket.matches || []);
   const soccer = useSelector(state => state.soccer.soccerData || []);
@@ -54,6 +84,10 @@ function Main() {
   const cricketInplay = useSelector(state => state.cricket.inplayMatches || []);
   const soccerInplay = useSelector(state => state.soccer.soccerInplayData || []);
   const tennisInplay = useSelector(state => state.tennis.inplayData || []);
+  const [enabledSports, setEnabledSports] = useState({
+    ...defaultVisibleSports,
+  });
+  const [visibilityLoading, setVisibilityLoading] = useState(false);
 
   // const cricket = []
   // const soccer = []
@@ -70,35 +104,88 @@ function Main() {
     dispatch(fetchTennisInplayData());
   }, [dispatch]);
 
+  useEffect(() => {
+    const userId = user?.id || user?._id;
+    if (!userId) {
+      setEnabledSports(defaultVisibleSports);
+      return;
+    }
+
+    const localGameLock = getUserGameLock(user);
+    if (Array.isArray(localGameLock)) {
+      setEnabledSports(parseEnabledSports(localGameLock));
+    }
+
+    const loadSportVisibility = async () => {
+      setVisibilityLoading(true);
+      try {
+        const { data } = await api.get("/get/user-details");
+        const gameLock = getUserGameLock(data?.data);
+        if (Array.isArray(gameLock)) {
+          setEnabledSports(parseEnabledSports(gameLock));
+        }
+      } catch (error) {
+        // Keep local user settings fallback in case API call fails.
+        if (!Array.isArray(localGameLock)) {
+          setEnabledSports(defaultVisibleSports);
+        }
+      } finally {
+        setVisibilityLoading(false);
+      }
+    };
+
+    loadSportVisibility();
+  }, [user?.id, user?._id]);
+
   // If data hasn't loaded yet, show loading
   if (
-    !cricket.length &&
+    visibilityLoading ||
+    (!cricket.length &&
     !soccer.length &&
     !tennis.length &&
     !cricketInplay.length &&
     !soccerInplay.length &&
-    !tennisInplay.length
+    !tennisInplay.length)
   ) {
     return <div className="text-center py-4"><Spinner/></div>;
   }
 
-  const allSports = [...cricket, ...soccer, ...tennis];
-  const allInplaySports = [...cricketInplay, ...soccerInplay, ...tennisInplay];
+  const visibleCricket = enabledSports.cricket
+    ? cricket.filter((m) => isMatchVisible("cricket", m?.id))
+    : [];
+  const visibleSoccer = enabledSports.soccer
+    ? soccer.filter((m) => isMatchVisible("soccer", m?.id))
+    : [];
+  const visibleTennis = enabledSports.tennis
+    ? tennis.filter((m) => isMatchVisible("tennis", m?.id))
+    : [];
+  const visibleCricketInplay = enabledSports.cricket
+    ? cricketInplay.filter((m) => isMatchVisible("cricket", m?.id))
+    : [];
+  const visibleSoccerInplay = enabledSports.soccer
+    ? soccerInplay.filter((m) => isMatchVisible("soccer", m?.id))
+    : [];
+  const visibleTennisInplay = enabledSports.tennis
+    ? tennisInplay.filter((m) => isMatchVisible("tennis", m?.id))
+    : [];
+
+  const allSports = [...visibleCricket, ...visibleSoccer, ...visibleTennis];
+  const allInplaySports = [...visibleCricketInplay, ...visibleSoccerInplay, ...visibleTennisInplay];
 
   const filteredData = {
     all: Filter === "In Play" ? allInplaySports : filterMatches(allSports, Filter),
-    cricket: Filter === "In Play" ? cricketInplay : filterMatches(cricket, Filter),
-    soccer: Filter === "In Play" ? soccerInplay : filterMatches(soccer, Filter),
-    tennis: Filter === "In Play" ? tennisInplay : filterMatches(tennis, Filter),
+    cricket: Filter === "In Play" ? visibleCricketInplay : filterMatches(visibleCricket, Filter),
+    soccer: Filter === "In Play" ? visibleSoccerInplay : filterMatches(visibleSoccer, Filter),
+    tennis: Filter === "In Play" ? visibleTennisInplay : filterMatches(visibleTennis, Filter),
   };
 
   let content;
   if (Filter === "In Play") {
-    content = <Inplay data={filteredData} />;
+    content = <Inplay data={filteredData} enabledSports={enabledSports} />;
   } else if (Filter === "Today") {
-    content = <Today data={filteredData} />;
+    content = <Today data={filteredData} enabledSports={enabledSports} />;
   } else if (Filter === "Tomorrow") {
-    content = <Tomorrow data={filteredData} />;
+    content = <Tomorrow data={filteredData} enabledSports={enabledSports} />;
   } else if (Filter === "League") {
     navigate('/leagues');
   }

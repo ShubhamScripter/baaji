@@ -25,26 +25,38 @@ function Bets() {
       )
       .map((bet, idx) => {
         const created = bet.createdAt ? new Date(bet.createdAt) : new Date();
+        const statusCode = Number(bet?.status ?? 0);
+        const stake = Number(bet.betAmount ?? 0);
+        const odds =
+          bet.xValue != null && bet.xValue !== ""
+            ? Number(bet.xValue)
+            : Number(bet.price ?? 0);
+        const expectedProfit = Number(bet.betAmount ?? 0);
+        const expectedLoss = Number(bet.price ?? 0);
+        const actualNet = Number(bet.profitLossChange ?? bet.resultAmount ?? 0);
         return {
           betKind: "sports",
           id: bet._id || bet.id || `sports-${idx}`,
+          plId: bet.userName || "user",
+          betId: bet.betId || bet._id || `sports-${idx}`,
+          ipAddress: bet.ip || "-",
           marketName: bet.marketName || "—",
           gameName: bet.gameName || "—",
           eventName: bet.eventName || "—",
-          odd:
-            bet.xValue != null && bet.xValue !== ""
-              ? Number(bet.xValue)
-              : Number(bet.price ?? 0),
-          stake: Number(bet.betAmount ?? 0),
-          profitLoss: Number(bet.profitLossChange ?? bet.resultAmount ?? 0),
-          possibleProfit:
-            filterValue === "unsettle" ? Number(bet.betAmount ?? 0) : undefined,
-          possibleLoss:
-            filterValue === "unsettle" ? Number(bet.price ?? 0) : undefined,
+          odd: odds,
+          stake,
+          profitLoss: actualNet,
+          rawStatus: statusCode,
+          expectedProfit,
+          expectedLoss,
+          actualNet,
+          actualProfit: Math.max(actualNet, 0),
+          actualLoss: Math.max(-actualNet, 0),
           time: created.toLocaleString(),
           placedTs: created.getTime(),
           selection: bet.teamName || "",
           otype: bet.otype === "back" ? "Back" : "Lay",
+          type: bet.otype || bet.type || "-",
           betResult: bet.betResult || "—",
           fancyScore: bet.fancyScore ?? bet.fancy_score ?? null,
         };
@@ -72,18 +84,35 @@ function Bets() {
 
     return apiData.map((bet, idx) => {
       const created = bet.createdAt ? new Date(bet.createdAt) : null;
+      const stake = Number(bet.bet_amount ?? 0);
+      const odds = Number(bet?.providerRaw?.odds ?? 0);
+      const expectedProfit = stake * Math.max(odds - 1, 0);
+      const expectedLoss = -stake;
+      const actualNet = Number(bet?.change ?? 0) - stake;
       return {
         betKind: "casino",
         id: bet._id || bet.game_round || `casino-${idx}`,
+        plId: bet.userName || "user",
+        betId: bet.game_round || bet._id || `casino-${idx}`,
+        ipAddress: bet?.providerRaw?.ip || "-",
         gameName:
           (bet.game_name && String(bet.game_name).trim()) ||
           bet.game_uid ||
           "Casino",
-        betAmount: Number(bet.bet_amount ?? 0),
-        profitLoss:
-        settlementFilter === "unsettle"
-            ? Number(bet.bet_amount ?? 0)
-            : Number(bet?.change ?? 0) - Number(bet.bet_amount ?? 0),
+        marketName: "Casino",
+        eventName: bet.game_uid || "Casino",
+        selection: bet.game_uid || "Casino",
+        type: "casino",
+        odd: odds,
+        stake,
+        betAmount: stake,
+        profitLoss: actualNet,
+        rawStatus: settlementFilter === "unsettle" ? 0 : 1,
+        expectedProfit,
+        expectedLoss,
+        actualNet,
+        actualProfit: Math.max(actualNet, 0),
+        actualLoss: Math.max(-actualNet, 0),
         time: created ? created.toLocaleString() : "",
         placedTs: created ? created.getTime() : 0,
       };

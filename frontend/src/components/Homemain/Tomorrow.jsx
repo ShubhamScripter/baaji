@@ -12,15 +12,19 @@ const bannerImages = {
   Tennis: banner4
 };
 
-function Tomorrow({ data }) {
+function Tomorrow({ data, enabledSports }) {
   const navigate = useNavigate();
 
-  const banners = [
-    { name: "All", total: data.all.length },
-    { name: "Cricket", total: data.cricket.length },
-    { name: "Soccer", total: data.soccer.length },
-    { name: "Tennis", total: data.tennis.length },
+  const sportBanners = [
+    { key: "cricket", name: "Cricket", total: data.cricket.length },
+    { key: "soccer", name: "Soccer", total: data.soccer.length },
+    { key: "tennis", name: "Tennis", total: data.tennis.length },
   ];
+  const visibleSports = sportBanners.filter(
+    (banner) => enabledSports?.[banner.key] !== false
+  );
+  const allTotal = visibleSports.reduce((sum, banner) => sum + banner.total, 0);
+  const banners = [{ name: "All", total: allTotal }, ...visibleSports];
 
   return (
     <div>

@@ -154,17 +154,35 @@ function AprofitMarket() {
                 const mappedData = report.map((item, index) => {
                     const hasSectionChildren = Array.isArray(item.children) && item.children.length > 0
                     const netAmount = (item.downlineWinAmount || 0) - (item.downlineLossAmount || 0)
+                    const itemPlayerProfit = Number(item.myProfit || 0)
+                    const itemBaseMagnitude = Math.abs(itemPlayerProfit !== 0 ? itemPlayerProfit : netAmount)
+                    const itemDownlineValue =
+                        itemPlayerProfit < 0
+                            ? -itemBaseMagnitude
+                            : itemPlayerProfit > 0
+                            ? itemBaseMagnitude
+                            : netAmount
+                    const itemUplineValue = -itemDownlineValue
 
                     const children = hasSectionChildren
                         ? item.children.map((child) => {
                             const childNet = (child.downlineWinAmount || 0) - (child.downlineLossAmount || 0)
+                            const childPlayerProfit = Number(child.myProfit || 0)
+                            const childBaseMagnitude = Math.abs(childPlayerProfit !== 0 ? childPlayerProfit : childNet)
+                            const childDownlineValue =
+                                childPlayerProfit < 0
+                                    ? -childBaseMagnitude
+                                    : childPlayerProfit > 0
+                                    ? childBaseMagnitude
+                                    : childNet
+                            const childUplineValue = -childDownlineValue
                             return {
                                 label: child.label || child.gameType || child.marketName || 'Unknown',
                                 stake: 0,
-                                downline: childNet.toFixed(2),
-                                player: (child.myProfit || 0).toFixed(2),
+                                downline: childDownlineValue.toFixed(2),
+                                player: childPlayerProfit.toFixed(2),
                                 comm: 0,
-                                upline: childNet.toFixed(2),
+                                upline: childUplineValue.toFixed(2),
                                 bets: Array.isArray(child.bets) ? child.bets.map((bet, betIndex) => ({
                                     id: bet.betId || `${index + 1}-${betIndex + 1}`,
                                     userName: bet.userName,
@@ -187,10 +205,10 @@ function AprofitMarket() {
                             {
                                 label: item.marketName,
                                 stake: 0,
-                                downline: netAmount.toFixed(2),
-                                player: (item.myProfit || 0).toFixed(2),
+                                downline: itemDownlineValue.toFixed(2),
+                                player: itemPlayerProfit.toFixed(2),
                                 comm: 0,
-                                upline: netAmount.toFixed(2),
+                                upline: itemUplineValue.toFixed(2),
                                 bets: []
                             }
                         ]
@@ -199,10 +217,10 @@ function AprofitMarket() {
                         id: index + 1,
                         title: item.name,
                         stake: 0, // Not provided in API response
-                        downline: netAmount.toFixed(2),
-                        player: (item.myProfit || 0).toFixed(2),
+                        downline: itemDownlineValue.toFixed(2),
+                        player: itemPlayerProfit.toFixed(2),
                         comm: 0, // Not provided in API response
-                        upline: netAmount.toFixed(2),
+                        upline: itemUplineValue.toFixed(2),
                         children,
                         // Additional fields from API
                         eventName: item.eventName,

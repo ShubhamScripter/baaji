@@ -128,6 +128,25 @@ function ACdownlinesportspl() {
     fetchCasinoProfitLoss({ startDate: yesterdayStr, endDate: todayStr });
   };
 
+  const handleShowAllDownlineBets = () => {
+    const user = getUser();
+    const userId = user?.id || user?._id;
+    const userName = user?.userName || "All Downline";
+
+    if (!userId) {
+      return;
+    }
+
+    navigate("/ACdownlinesportspl/bets", {
+      state: {
+        targetUserId: userId,
+        targetUserName: `${userName} (All Downline)`,
+        startDate,
+        endDate,
+      },
+    });
+  };
+
   // Load data on component mount with default dates (last one month)
   useEffect(() => {
     const defaultDates = getDefaultDates();
@@ -140,12 +159,11 @@ function ACdownlinesportspl() {
     (acc, curr) => {
       acc.stake += curr.stake;
       acc.casinoPL += curr.casinoPL;
-      acc.internationalCasinoPL += curr.internationalCasinoPL;
       acc.commission += curr.commission;
       acc.uplinePL += curr.uplinePL;
       return acc;
     },
-    { stake: 0, casinoPL: 0, internationalCasinoPL: 0, commission: 0, uplinePL: 0 }
+    { stake: 0, casinoPL: 0, commission: 0, uplinePL: 0 }
   );
 
   const formatNumber = (num) =>
@@ -211,6 +229,12 @@ function ACdownlinesportspl() {
           >
             Reset
           </button>
+          <button
+            onClick={handleShowAllDownlineBets}
+            className="border border-[#cb8009] text-xs font-[700] bg-[#ffcc2f] p-2 rounded-sm hover:bg-[#ffa00c] cursor-pointer"
+          >
+            Show All Downline Bets
+          </button>
         </div>
       </div>
 
@@ -227,7 +251,6 @@ function ACdownlinesportspl() {
                 <th className="px-2 py-2">UID</th>
                 <th className="px-2 py-2">Stake</th>
                 <th className="px-2 py-2">Casino P/L</th>
-                <th className="px-2 py-2">International Casino P/L</th>
                 <th className="px-2 py-2">Comm.</th>
                 <th className="px-2 py-2">Upline/Total P/L</th>
                 <th className="px-2 py-2">Actions</th>
@@ -252,9 +275,6 @@ function ACdownlinesportspl() {
                   <td className="px-2 py-2">{formatNumber(row.stake)}</td>
                   <td className={`px-2 py-2 ${row.casinoPL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
                     {formatNumber(row.casinoPL)}
-                  </td>
-                  <td className={`px-2 py-2 ${row.internationalCasinoPL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
-                    {row.internationalCasinoPL < 0 ? `(${formatNumber(Math.abs(row.internationalCasinoPL))})` : formatNumber(row.internationalCasinoPL)}
                   </td>
                   <td className="px-2 py-2">{formatNumber(row.commission)}</td>
                   <td className={`px-2 py-2 ${row.uplinePL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
@@ -295,9 +315,6 @@ function ACdownlinesportspl() {
                   <td className="px-2 py-2">{formatNumber(totals.stake)}</td>
                   <td className={`px-2 py-2 ${totals.casinoPL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
                     {formatNumber(totals.casinoPL)}
-                  </td>
-                  <td className={`px-2 py-2 ${totals.internationalCasinoPL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>
-                    {totals.internationalCasinoPL < 0 ? `(${formatNumber(Math.abs(totals.internationalCasinoPL))})` : formatNumber(totals.internationalCasinoPL)}
                   </td>
                   <td className="px-2 py-2">{formatNumber(totals.commission)}</td>
                   <td className={`px-2 py-2 ${totals.uplinePL < 0 ? 'text-[#dc3545]' : 'text-[#198754]'}`}>

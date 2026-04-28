@@ -22,6 +22,7 @@ const toApiMarketName = (name) => MARKET_NAME_TO_API[name] || name;
 
 import betHistoryModel from '../models/betHistoryModel.js';
 import betModel from '../models/betModel.js';
+import DeactivatedMatch from '../models/matchSettingsModel.js';
 import SubAdmin from '../models/subAdminModel.js';
 import TransactionHistory from '../models/transtionHistoryModel.js';
 import { getDateRangeUTC } from '../utils/dateUtils.js';
@@ -106,8 +107,78 @@ async function validateCasinoMarket(gameId, teamName, xValue, otype) {
   return _validateCasinoMarket(cachedData, { gameId, teamName, xValue, otype });
 }
 
+const normalizeSportKey = (gameName = '') => {
+  const value = String(gameName || '').trim().toLowerCase();
+  if (value.includes('cricket')) return 'cricket';
+  if (value.includes('soccer')) return 'soccer';
+  if (value.includes('tennis')) return 'tennis';
+  return value;
+};
+
+const getSportsMarketType = ({ marketName = '', mname = '', gameType = '' }) => {
+  const normalized = [marketName, mname, gameType]
+    .map((v) => String(v || '').trim().toLowerCase().replace(/[_\s-]+/g, ''))
+    .filter(Boolean);
+
+  if (normalized.some((v) => v.includes('bookmaker'))) return 'bookmaker';
+  if (normalized.some((v) => v === 'normal' || v.includes('fancy'))) return 'fancy';
+  // MATCH_ODDS, Match Odds, matchodds all map here.
+  return 'matchOdds';
+};
+
+const getFancyMarketType = ({ gameType = '', mname = '' }) => {
+  const gt = String(gameType || '').trim().toLowerCase();
+  const mn = String(mname || '').trim().toLowerCase();
+  if (gt === 'normal' || mn === 'normal') return 'fancy';
+  return 'fancy';
+};
+
+const checkMarketVisibilityLock = async ({
+  gameId,
+  gameName,
+  marketType,
+  eventName,
+}) => {
+  const sport = normalizeSportKey(gameName);
+  if (!['cricket', 'soccer', 'tennis'].includes(sport)) return null;
+
+  const matchId = String(gameId || '').trim();
+  let blockedEntry = null;
+  if (matchId) {
+    blockedEntry = await DeactivatedMatch.findOne({ matchId, sport }).lean();
+  }
+
+  // Fallback for mismatched ids: resolve by match name (event title).
+  if (!blockedEntry && eventName) {
+    blockedEntry = await DeactivatedMatch.findOne({
+      sport,
+      matchName: { $regex: `^${String(eventName).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+    }).lean();
+  }
+
+  if (!blockedEntry) return null;
+
+  // Backward compatibility for old records without marketLocks: fully blocked.
+  if (!blockedEntry.marketLocks) {
+    return 'This match is disabled by admin.';
+  }
+
+  if (blockedEntry.marketLocks[marketType] === false) {
+    if (marketType === 'matchOdds') {
+      return 'Match Odds is disabled by admin for this match.';
+    }
+    if (marketType === 'bookmaker') {
+      return 'Bookmaker is disabled by admin for this match.';
+    }
+    return 'Fancy is disabled by admin for this match.';
+  }
+
+  return null;
+};
+
 //  DOUBLE SETTLEMENT FIX: Processing lock to prevent concurrent executions
 let isProcessingCasinoBets = false;
+const roundTo2 = (value) => Number(Number(value || 0).toFixed(2));
 
 export const placeBetUnified = async (req, res) => {
   try {
@@ -789,6 +860,7 @@ const placeBet = async (req, res) => {
       gameType,
       eventName,
       marketName,
+      mname,
       gameName,
       teamName,
       otype,
@@ -798,6 +870,17 @@ const placeBet = async (req, res) => {
     // Validate required fields
     if (!gameId || !sid || !price || !xValue || !gameName || !teamName) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const sportsMarketType = getSportsMarketType({ marketName, mname, gameType });
+    const sportsLockMessage = await checkMarketVisibilityLock({
+      gameId,
+      gameName,
+      marketType: sportsMarketType,
+      eventName,
+    });
+    if (sportsLockMessage) {
+      return res.status(403).json({ message: sportsLockMessage });
     }
 
     // Server-side market validation: check suspend status + odds against live data
@@ -858,34 +941,35 @@ const placeBet = async (req, res) => {
 
       //Here we are using the external Api
       try {
+        // Look up beventId from match list (shared by fancy and sports payloads)
+        let beventId = '';
+        try {
+          const matchListData = await apiFetchMatchList(Number(sid));
+          if (matchListData?.success && matchListData.data) {
+            const allMatches = [
+              ...(matchListData.data.t1 || []),
+              ...(matchListData.data.t2 || []),
+            ];
+            const matched = allMatches.find((m) => {
+              const matchId = String(m.beventId || m.oldgmid || m.gmid);
+              return matchId === String(gameId);
+            });
+            beventId = matched?.beventId ? String(matched.beventId) : '';
+          }
+        } catch (err) {
+          console.warn(
+            `[BET] Failed to fetch match list for beventId lookup:`,
+            err.message
+          );
+        }
+
         if (gameType === 'fancy1' || gameType === 'oddeven') {
           // fancy1 and oddeven use the same request format as fancy (session) bets:
           // no runners, carries fancyId + beventId instead.
-          let beventId = '';
-          try {
-            const matchListData = await apiFetchMatchList(Number(sid));
-            if (matchListData?.success && matchListData.data) {
-              const allMatches = [
-                ...(matchListData.data.t1 || []),
-                ...(matchListData.data.t2 || []),
-              ];
-              const matched = allMatches.find((m) => {
-                const matchId = String(m.beventId || m.oldgmid || m.gmid);
-                return matchId === String(gameId);
-              });
-              beventId = matched?.beventId ? String(matched.beventId) : '';
-            }
-          } catch (err) {
-            console.warn(
-              `[FANCY1 BET] Failed to fetch match list for beventId lookup:`,
-              err.message
-            );
-          }
-
           await apiSendBetIncoming({
             sport_id: sid,
             sportName: (gameName || '').replace(/\s*game\s*$/i, ''),
-            event_id: marketMeta.gmid || gameId,
+            event_id: marketMeta.gmid || null,
             beventId,
             event_name: eventName,
             fancyId: marketMeta.fancyId ? String(marketMeta.fancyId) : null,
@@ -894,7 +978,7 @@ const placeBet = async (req, res) => {
           });
         } else {
           await apiSendBetIncoming({
-            event_id: gameId,
+            event_id: marketMeta?.gmid ?? null,
             event_name: eventName,
             market_id: market_id,
             market_name: toApiMarketName(marketName),
@@ -903,7 +987,7 @@ const placeBet = async (req, res) => {
             sport_id: sid,
             fancyId: null,
             fancymid: marketMeta.mid || null,
-            bevent_id: marketMeta.beventId || null,
+            bevent_id: beventId || null,
             runners: marketMeta.runners || [],
           });
         }
@@ -1292,6 +1376,7 @@ export const placeFancyBet = async (req, res) => {
       gameType,
       eventName,
       marketName,
+      mname,
       gameName,
       teamName,
       otype,
@@ -1301,6 +1386,16 @@ export const placeFancyBet = async (req, res) => {
     // Validate required fields
     if (!gameId || !sid || !price || !xValue || !gameName || !teamName) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const fancyLockMessage = await checkMarketVisibilityLock({
+      gameId,
+      gameName,
+      marketType: getFancyMarketType({ gameType, mname }),
+      eventName,
+    });
+    if (fancyLockMessage) {
+      return res.status(403).json({ message: fancyLockMessage });
     }
 
     const fancyCheck = await validateFancyMarket(
@@ -1382,7 +1477,7 @@ export const placeFancyBet = async (req, res) => {
         await apiSendBetIncoming({
           sport_id: sid,
           sportName: (gameName || '').replace(/\s*game\s*$/i, ''),
-          event_id: fancyMeta.gmid || gameId,
+          event_id: fancyMeta?.gmid ?? null,
           beventId,
           event_name: eventName,
           fancyId: fancyMeta.fancyId ? String(fancyMeta.fancyId) : null,
@@ -1971,18 +2066,38 @@ export const updateResultOfBets = async (req, res) => {
             continue;
           }
           Object.assign(bet, settlementResult.betUpdates);
+          const settlementAt = bet.settledAt || new Date();
+          const settlementDelta = roundTo2(
+            settlementResult.userUpdates?.balanceChange || 0
+          );
+          let settlementBalanceBefore = roundTo2(user.balance || 0);
+          let settlementBalanceAfter = settlementBalanceBefore;
 
           if (!isVoid && settlementResult.userUpdates) {
             console.log(
               `[SPORTS $inc] betId=${bet._id} userId=${bet.userId} balanceChange=${settlementResult.userUpdates.balanceChange} bplChange=${settlementResult.userUpdates.profitLossChange}`
             );
-            await SubAdmin.findByIdAndUpdate(bet.userId, {
-              $inc: {
-                balance: settlementResult.userUpdates.balanceChange,
-                bettingProfitLoss:
-                  settlementResult.userUpdates.profitLossChange,
+            const updatedUser = await SubAdmin.findByIdAndUpdate(
+              bet.userId,
+              {
+                $inc: {
+                  balance: settlementResult.userUpdates.balanceChange,
+                  bettingProfitLoss:
+                    settlementResult.userUpdates.profitLossChange,
+                },
               },
-            });
+              { new: true, select: 'balance' }
+            );
+            if (updatedUser) {
+              settlementBalanceAfter = roundTo2(updatedUser.balance);
+              settlementBalanceBefore = roundTo2(
+                settlementBalanceAfter - settlementDelta
+              );
+            } else {
+              settlementBalanceAfter = roundTo2(
+                settlementBalanceBefore + settlementDelta
+              );
+            }
           }
 
           // UPDATE BETHISTORY: Settle/void each individual bet history record
@@ -2003,7 +2118,11 @@ export const updateResultOfBets = async (req, res) => {
                     profitLossChange: 0, // explicit: void = no P&L impact
                     betResult: 'VOID',
                     settledBy: bet.settledBy || 'api',
-                    settledAt: bet.settledAt || Date.now(),
+                    settledAt: settlementAt,
+                    balanceBeforeSettlement: settlementBalanceBefore,
+                    balanceAfterSettlement: settlementBalanceAfter,
+                    balanceDeltaApplied: 0,
+                    walletEntryRef: `sports:void:${bet._id}:${historyRecord._id}:${new Date(settlementAt).getTime()}`,
                   },
                 }
               );
@@ -2051,7 +2170,11 @@ export const updateResultOfBets = async (req, res) => {
                     profitLossChange: historyProfitLossChange,
                     betResult: winnerTeam,
                     settledBy: bet.settledBy || 'api',
-                    settledAt: bet.settledAt || Date.now(),
+                    settledAt: settlementAt,
+                    balanceBeforeSettlement: settlementBalanceBefore,
+                    balanceAfterSettlement: settlementBalanceAfter,
+                    balanceDeltaApplied: settlementDelta,
+                    walletEntryRef: `sports:settle:${bet._id}:${historyRecord._id}:${new Date(settlementAt).getTime()}`,
                   },
                 }
               );
@@ -3017,6 +3140,13 @@ export const updateFancyBetResult = async (req, res) => {
               continue;
             }
             Object.assign(bet, settlementResult.betUpdates);
+            const settlementAt = bet.settledAt || new Date();
+            const settlementDelta = roundTo2(
+              settlementResult.userUpdates?.balanceChange || 0
+            );
+            let settlementBalanceBefore = roundTo2(user.balance || 0);
+            let settlementBalanceAfter = settlementBalanceBefore;
+            const settledHistoryIds = [];
 
             // UPDATE BETHISTORY FIRST: Settle/void each individual bet history record
             // betHistoryModel is the single source of truth for P/L
@@ -3038,7 +3168,11 @@ export const updateFancyBetResult = async (req, res) => {
                       profitLossChange: 0,
                       betResult: 'VOID',
                       settledBy: bet.settledBy || 'api',
-                      settledAt: bet.settledAt || Date.now(),
+                      settledAt: settlementAt,
+                      balanceBeforeSettlement: settlementBalanceBefore,
+                      balanceAfterSettlement: settlementBalanceAfter,
+                      balanceDeltaApplied: 0,
+                      walletEntryRef: `fancy:void:${bet._id}:${historyRecord._id}:${new Date(settlementAt).getTime()}`,
                     },
                   }
                 );
@@ -3102,10 +3236,11 @@ export const updateFancyBetResult = async (req, res) => {
                       profitLossChange: historyProfitLossChange,
                       betResult: bet.betResult,
                       settledBy: bet.settledBy || 'api',
-                      settledAt: bet.settledAt || Date.now(),
+                      settledAt: settlementAt,
                     },
                   }
                 );
+                settledHistoryIds.push(historyRecord._id);
               }
             }
 
@@ -3117,12 +3252,49 @@ export const updateFancyBetResult = async (req, res) => {
                   ? betHistoryTotalPL
                   : settlementResult.userUpdates.profitLossChange;
 
-              await SubAdmin.findByIdAndUpdate(bet.userId, {
-                $inc: {
-                  balance: settlementResult.userUpdates.balanceChange,
-                  bettingProfitLoss: bplChange,
+              const updatedUser = await SubAdmin.findByIdAndUpdate(
+                bet.userId,
+                {
+                  $inc: {
+                    balance: settlementResult.userUpdates.balanceChange,
+                    bettingProfitLoss: bplChange,
+                  },
                 },
-              });
+                { new: true, select: 'balance' }
+              );
+              if (updatedUser) {
+                settlementBalanceAfter = roundTo2(updatedUser.balance);
+                settlementBalanceBefore = roundTo2(
+                  settlementBalanceAfter - settlementDelta
+                );
+              } else {
+                settlementBalanceAfter = roundTo2(
+                  settlementBalanceBefore + settlementDelta
+                );
+              }
+
+              if (settledHistoryIds.length > 0) {
+                await betHistoryModel.updateMany(
+                  { _id: { $in: settledHistoryIds } },
+                  {
+                    $set: {
+                      balanceBeforeSettlement: settlementBalanceBefore,
+                      balanceAfterSettlement: settlementBalanceAfter,
+                      balanceDeltaApplied: settlementDelta,
+                    },
+                  }
+                );
+                for (const historyId of settledHistoryIds) {
+                  await betHistoryModel.updateOne(
+                    { _id: historyId },
+                    {
+                      $set: {
+                        walletEntryRef: `fancy:settle:${bet._id}:${historyId}:${new Date(settlementAt).getTime()}`,
+                      },
+                    }
+                  );
+                }
+              }
             }
 
             totalBetsProcessed++;

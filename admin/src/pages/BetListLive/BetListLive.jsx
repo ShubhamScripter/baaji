@@ -217,7 +217,7 @@ const MatchedData = [
 
 function BetListLive() {
     const [matchType, setmatchType] = useState("Cricket")
-    const [matchSubType, setmatchSubType] = useState("BetFair")
+    const [matchSubType, setmatchSubType] = useState("Bookmaker")
     const [matchedData, setMatchedData] = useState(MatchedData);
 
     const mapMatchTypeToSelectedGame = (type) => {
@@ -343,15 +343,6 @@ function BetListLive() {
             {(matchType !== "Casino")&&(
                 <div className="flex gap-4">
                 <div className="flex gap-1 justify-center items-center">
-                <div id="Cricket" className={`${matchSubType==="BetFair" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
-                onClick={()=>setmatchSubType("BetFair")}
-                >
-                   <GiPlainCircle className={`${matchSubType==="BetFair" ?"text-white text-[8px]":"text-xs text-white"}`}/>
-                </div>
-                <label htmlFor="BetFair">Bet Fair</label>
-                </div>
-
-                <div className="flex gap-1 justify-center items-center">
                 <div id="Cricket" className={`${matchSubType==="Bookmaker" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
                 onClick={()=>setmatchSubType("Bookmaker")}
                 >
@@ -370,30 +361,12 @@ function BetListLive() {
                 </div>
 
                 <div className="flex gap-1 justify-center items-center">
-                <div id="SportsBook" className={`${matchSubType==="SportsBook" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
-                onClick={()=>setmatchSubType("SportsBook")}
-                >
-                   <GiPlainCircle className={`${matchSubType==="SportsBook" ?"text-white text-[8px]":"text-xs text-white"}`}/>
-                </div>
-                <label htmlFor="SportsBook">SportsBook</label>
-                </div>
-
-                <div className="flex gap-1 justify-center items-center">
                 <div id="Tie" className={`${matchSubType==="Tie" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
                 onClick={()=>setmatchSubType("Tie")}
                 >
                    <GiPlainCircle className={`${matchSubType==="Tie" ?"text-white text-[8px]":"text-xs text-white"}`}/>
                 </div>
                 <label htmlFor="Tie">Tie</label>
-                </div>
-
-                <div className="flex gap-1 justify-center items-center">
-                <div id="Toss" className={`${matchSubType==="Toss" ? "border-4 border-[#2196f3] rounded-[50%]":"border border-gray-300 rounded-[50%]"}`}
-                onClick={()=>setmatchSubType("Toss")}
-                >
-                   <GiPlainCircle className={`${matchSubType==="Toss" ?"text-white text-[8px]":"text-xs text-white"}`}/>
-                </div>
-                <label htmlFor="Toss">Toss</label>
                 </div>
 
             </div>

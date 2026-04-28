@@ -15,17 +15,13 @@ function BlockMarket() {
   const [marketLocks, setMarketLocks] = useState({});
   const [seriesRows, setSeriesRows] = useState([]);
   const [expandedSeries, setExpandedSeries] = useState({});
+  const [savingMatchIds, setSavingMatchIds] = useState([]);
 
   const sportRows = [
     { id: 1, key: "soccer", betfairId: 1, name: "Soccer", apiGameName: "soccer" },
     { id: 2, key: "tennis", betfairId: 2, name: "Tennis", apiGameName: "tennis" },
-    { id: 3, key: "politics", betfairId: 2378961, name: "Politics", apiGameName: null },
-    { id: 4, key: "cricket", betfairId: 4, name: "Cricket", apiGameName: "cricket" },
-    { id: 5, key: "greyhoundRacing", betfairId: 4339, name: "Greyhound Racing", apiGameName: "Greyhound Racing" },
-    { id: 6, key: "indiaCasino", betfairId: 6, name: "India Casino", apiGameName: "Casino" },
-    { id: 7, key: "awcCasino", betfairId: 7, name: "AWC Casino", apiGameName: null },
-    { id: 8, key: "horseRacing", betfairId: 8, name: "Horse Racing", apiGameName: "Horse Racing" },
-    { id: 9, key: "depositWithdraw", betfairId: 9, name: "Deposit / Withdraw", apiGameName: null },
+    { id: 3, key: "cricket", betfairId: 4, name: "Cricket", apiGameName: "cricket" },
+    { id: 4, key: "casino", betfairId: 6, name: "Casino", apiGameName: "Casino" },
   ];
 
   const normaliseKey = (name = "") => name.toLowerCase().replace(/\s+/g, "");
@@ -96,12 +92,30 @@ function BlockMarket() {
       if (sport.key === "soccer") endpoint = "/soccer";
       if (sport.key === "tennis") endpoint = "/tennis";
 
-      const { data } = await axiosInstance.get(endpoint);
+      const [{ data }, { data: deactivatedData }] = await Promise.all([
+        axiosInstance.get(endpoint),
+        axiosInstance.get("/match-settings/deactivated?limit=5000"),
+      ]);
       const list = Array.isArray(data?.matches)
         ? data.matches
         : Array.isArray(data?.data)
           ? data.data
           : [];
+      const deactivatedRows = deactivatedData?.data?.matches || [];
+
+      const marketLocksByMatchId = {};
+      deactivatedRows.forEach((entry) => {
+        const entrySport = String(entry?.sport || "").toLowerCase();
+        if (entrySport !== sport.key) return;
+
+        const matchId = String(entry?.matchId || "").trim();
+        if (!matchId) return;
+        marketLocksByMatchId[matchId] = {
+          matchOdds: entry?.marketLocks?.matchOdds ?? true,
+          bookmaker: entry?.marketLocks?.bookmaker ?? true,
+          fancy: entry?.marketLocks?.fancy ?? true,
+        };
+      });
 
       const groupedSeries = new Map();
 
@@ -124,14 +138,22 @@ function BlockMarket() {
             matchOdds: true,
             bookmaker: true,
             fancy: true,
-            premiumFancy: true,
             matches: [],
           });
         }
 
         const seriesEntry = groupedSeries.get(seriesKey);
+        const matchId = String(
+          row?.id || row?.marketId || `${seriesKey}-match-${index + 1}`
+        );
+        const savedLocks = marketLocksByMatchId[matchId] || {
+          matchOdds: true,
+          bookmaker: true,
+          fancy: true,
+        };
+
         seriesEntry.matches.push({
-          id: row?.id || row?.marketId || `${seriesKey}-match-${index + 1}`,
+          id: matchId,
           srNo: seriesEntry.matches.length + 1,
           matchName: row?.match || row?.eventName || "Unknown Match",
           market:
@@ -140,14 +162,22 @@ function BlockMarket() {
             row?.mtype ||
             "Match Odds",
           date: row?.date || row?.openDate || row?.createdAt || "-",
-          matchOdds: true,
-          bookmaker: true,
-          fancy: true,
-          premiumFancy: true,
+          matchOdds: savedLocks.matchOdds,
+          bookmaker: savedLocks.bookmaker,
+          fancy: savedLocks.fancy,
         });
       });
 
-      setSeriesRows(Array.from(groupedSeries.values()).slice(0, 20));
+      const preparedSeries = Array.from(groupedSeries.values())
+        .map((series) => ({
+          ...series,
+          matchOdds: series.matches.every((m) => m.matchOdds),
+          bookmaker: series.matches.every((m) => m.bookmaker),
+          fancy: series.matches.every((m) => m.fancy),
+        }))
+        .slice(0, 20);
+
+      setSeriesRows(preparedSeries);
       setExpandedSeries({});
     } catch (error) {
       console.error("Failed to fetch series list:", error);
@@ -168,28 +198,101 @@ function BlockMarket() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSport]);
 
-  const toggleSeriesFlag = (rowId, key) => {
-    setSeriesRows((prev) =>
-      prev.map((row) =>
-        row.id === rowId ? { ...row, [key]: !row[key] } : row
-      )
+  const getApiSport = (sportKey) => {
+    if (sportKey === "cricket") return "cricket";
+    if (sportKey === "soccer") return "soccer";
+    if (sportKey === "tennis") return "tennis";
+    return null;
+  };
+
+  const updateMatchActivation = async (match, marketType, isEnabled) => {
+    const matchId = String(match?.id || "");
+    const apiSport = getApiSport(selectedSport);
+    if (!matchId || !apiSport) return;
+
+    setSavingMatchIds((prev) =>
+      prev.includes(matchId) ? prev : [...prev, matchId]
     );
+    try {
+      await axiosInstance.patch(`/block-market/match-visibility`, {
+        matchId,
+        sport: apiSport,
+        matchName: match?.matchName || "Unknown Match",
+        marketType,
+        isEnabled,
+      });
+    } finally {
+      setSavingMatchIds((prev) => prev.filter((id) => id !== matchId));
+    }
+  };
+
+  const syncSeriesActivation = async (seriesId, nextRows, marketType) => {
+    const series = nextRows.find((row) => row.id === seriesId);
+    if (!series || !Array.isArray(series.matches)) return;
+
+    const tasks = series.matches.map((match) =>
+      updateMatchActivation(match, marketType, Boolean(match[marketType]))
+    );
+
+    try {
+      await Promise.all(tasks);
+      toast.success(`Updated ${series.seriesName} status`);
+    } catch (error) {
+      console.error("Failed to sync series activation:", error);
+      toast.error("Unable to update league status");
+      fetchSeriesForSport(selectedSport);
+    }
+  };
+
+  const syncMatchActivation = async (seriesId, matchId, nextRows, marketType) => {
+    const series = nextRows.find((row) => row.id === seriesId);
+    const match = series?.matches?.find((m) => m.id === matchId);
+    if (!match) return;
+
+    try {
+      await updateMatchActivation(match, marketType, Boolean(match[marketType]));
+      toast.success(`Updated ${match.matchName} status`);
+    } catch (error) {
+      console.error("Failed to sync match activation:", error);
+      toast.error("Unable to update match status");
+      fetchSeriesForSport(selectedSport);
+    }
+  };
+
+  const toggleSeriesFlag = (rowId, key) => {
+    const updatedRows = seriesRows.map((row) => {
+      if (row.id !== rowId) return row;
+      const toggledValue = !row[key];
+      return {
+        ...row,
+        [key]: toggledValue,
+        matches: row.matches.map((match) => ({ ...match, [key]: toggledValue })),
+      };
+    });
+
+    setSeriesRows(updatedRows);
+    syncSeriesActivation(rowId, updatedRows, key);
   };
 
   const toggleMatchFlag = (seriesId, matchId, key) => {
-    setSeriesRows((prev) =>
-      prev.map((series) =>
-        series.id !== seriesId
-          ? series
-          : {
-              ...series,
-              matches: series.matches.map((match) =>
-                match.id === matchId ? { ...match, [key]: !match[key] } : match
-              ),
-            }
-      )
+    const updatedRows = seriesRows.map((series) =>
+      series.id !== seriesId
+        ? series
+        : {
+            ...series,
+            matches: series.matches.map((match) =>
+              match.id === matchId ? { ...match, [key]: !match[key] } : match
+            ),
+          }
     );
+
+    setSeriesRows(updatedRows);
+    syncMatchActivation(seriesId, matchId, updatedRows, key);
   };
+
+  const isMatchSaving = (matchId) => savingMatchIds.includes(String(matchId));
+  const isSeriesSaving = (series) =>
+    (series?.matches || []).some((match) => isMatchSaving(match.id));
 
   const toggleSeriesExpand = (seriesId) => {
     setExpandedSeries((prev) => ({ ...prev, [seriesId]: !prev[seriesId] }));
@@ -311,17 +414,16 @@ function BlockMarket() {
               <th className="px-2 py-2 text-left w-[12%]">Match Odds ON/OFF</th>
               <th className="px-2 py-2 text-left w-[12%]">Book Maker ON/OFF</th>
               <th className="px-2 py-2 text-left w-[10%]">Fancy ON/OFF</th>
-              <th className="px-2 py-2 text-left w-[8%]">Premium Fancy ON/OFF</th>
             </tr>
           </thead>
           <tbody className="border-y border-y-[#c9c9c9] bg-white text-xs">
             {seriesLoading ? (
               <tr>
-                <td colSpan="7" className="px-2 py-4 text-center">Loading...</td>
+                <td colSpan="6" className="px-2 py-4 text-center">Loading...</td>
               </tr>
             ) : seriesRows.length === 0 ? (
               <tr>
-                <td colSpan="7" className="px-2 py-4 text-center">
+                <td colSpan="6" className="px-2 py-4 text-center">
                   No series available for {activeSportApiRow?.name || "selected sport"}.
                 </td>
               </tr>
@@ -344,21 +446,18 @@ function BlockMarket() {
                     <td className="px-2 py-2">{row.seriesName}</td>
                     <td className="px-2 py-2">{row.date}</td>
                     <td className="px-2 py-2">
-                      <Switch on={row.matchOdds} onToggle={() => toggleSeriesFlag(row.id, "matchOdds")} />
+                      <Switch on={row.matchOdds} onToggle={() => toggleSeriesFlag(row.id, "matchOdds")} disabled={isSeriesSaving(row)} />
                     </td>
                     <td className="px-2 py-2">
-                      <Switch on={row.bookmaker} onToggle={() => toggleSeriesFlag(row.id, "bookmaker")} />
+                      <Switch on={row.bookmaker} onToggle={() => toggleSeriesFlag(row.id, "bookmaker")} disabled={isSeriesSaving(row)} />
                     </td>
                     <td className="px-2 py-2">
-                      <Switch on={row.fancy} onToggle={() => toggleSeriesFlag(row.id, "fancy")} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <Switch on={row.premiumFancy} onToggle={() => toggleSeriesFlag(row.id, "premiumFancy")} />
+                      <Switch on={row.fancy} onToggle={() => toggleSeriesFlag(row.id, "fancy")} disabled={isSeriesSaving(row)} />
                     </td>
                   </tr>
                   {expandedSeries[row.id] && row.matches?.length > 0 && (
                     <tr className="border-y border-y-[#7e97a7] bg-[#f7f7f7]">
-                      <td colSpan="7" className="p-0">
+                      <td colSpan="6" className="p-0">
                         <table className="w-full table-fixed text-xs">
                           <thead className="bg-[#4d5768] text-white">
                             <tr>
@@ -369,7 +468,6 @@ function BlockMarket() {
                               <th className="px-2 py-2 text-left w-[12%]">Match Odds ON/OFF</th>
                               <th className="px-2 py-2 text-left w-[12%]">Book Maker ON/OFF</th>
                               <th className="px-2 py-2 text-left w-[8%]">Fancy ON/OFF</th>
-                              <th className="px-2 py-2 text-left w-[8%]">Premium Fancy ON/OFF</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -380,16 +478,13 @@ function BlockMarket() {
                                 <td className="px-2 py-2">{match.market}</td>
                                 <td className="px-2 py-2">{match.date}</td>
                                 <td className="px-2 py-2">
-                                  <Switch on={match.matchOdds} onToggle={() => toggleMatchFlag(row.id, match.id, "matchOdds")} />
+                                  <Switch on={match.matchOdds} onToggle={() => toggleMatchFlag(row.id, match.id, "matchOdds")} disabled={isMatchSaving(match.id)} />
                                 </td>
                                 <td className="px-2 py-2">
-                                  <Switch on={match.bookmaker} onToggle={() => toggleMatchFlag(row.id, match.id, "bookmaker")} />
+                                  <Switch on={match.bookmaker} onToggle={() => toggleMatchFlag(row.id, match.id, "bookmaker")} disabled={isMatchSaving(match.id)} />
                                 </td>
                                 <td className="px-2 py-2">
-                                  <Switch on={match.fancy} onToggle={() => toggleMatchFlag(row.id, match.id, "fancy")} />
-                                </td>
-                                <td className="px-2 py-2">
-                                  <Switch on={match.premiumFancy} onToggle={() => toggleMatchFlag(row.id, match.id, "premiumFancy")} />
+                                  <Switch on={match.fancy} onToggle={() => toggleMatchFlag(row.id, match.id, "fancy")} disabled={isMatchSaving(match.id)} />
                                 </td>
                               </tr>
                             ))}
@@ -417,14 +512,15 @@ function BlockMarket() {
   );
 }
 
-function Switch({ on, onToggle }) {
+function Switch({ on, onToggle, disabled = false }) {
   return (
     <button
       type="button"
       onClick={onToggle}
+      disabled={disabled}
       className={`rounded-4xl w-12 h-6 flex items-center relative transition-all ${
         on ? "bg-[#2196f3] border border-[#2196f3]" : "border border-[#464541]"
-      }`}
+      } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <span
         className={`w-4 h-4 block rounded-full transition-all ${
