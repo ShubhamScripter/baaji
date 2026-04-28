@@ -109,7 +109,9 @@ import SuspendedMarketResult from './pages/generalSetting/SuspendedMarketResult'
 import ViewBets from './pages/generalSetting/ViewBets';
 import InactiveUsers from './pages/generalSetting/InactiveUsers';
 import BetLockedUsers from './pages/generalSetting/BetLockedUsers';
-
+import Cricketbet from './pages/marketAnalysis/Cricketbet';
+import Tennisbet from './pages/marketAnalysis/Tennisbet';
+import Soccerbet from './pages/marketAnalysis/Soccerbet';
 import DownLineView from './pages/downlineList/DownLineView';
 
 function App() {
@@ -160,6 +162,9 @@ function App() {
             <Route path='/Betlist' element={<BetList />} />
             <Route path='/BetListLive' element={<BetListLive />} />
             <Route path='/RiskManagement' element={<RiskManagement />} />
+            <Route path='/cricket-bet/:gameid' element={<Cricketbet />} />
+            <Route path='/tennis-bet/:gameid' element={<Tennisbet />} />
+            <Route path='/soccerbet/:gameid' element={<Soccerbet />} />
             <Route path='/matchedAll' element={<MatchedAll />} />
             <Route path='/banking' element={<Banking />} />
             <Route path='/manual-deposit-accounts' element={<ManualDepositAccounts />} />
