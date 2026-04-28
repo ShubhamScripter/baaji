@@ -10,10 +10,12 @@ import y from '../../assets/icon/youtube.png';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from "react-redux";
 import { fetchCricketData, fetchCricketInplayData } from '../../features/sports/cricketSlice';
+import useDeactivatedMatches from '../../hooks/useDeactivatedMatches';
 
 function Cricket({ activeTab }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { isMatchVisible } = useDeactivatedMatches();
 
   const { matches, inplayMatches, loader, error } = useSelector((state) => state.cricket);
   const [openIndexes, setOpenIndexes] = useState([0]);
@@ -22,6 +24,7 @@ function Cricket({ activeTab }) {
 
   // Filter matches based on activeTab (InPlay, Today, Tomorrow)
   const filteredMatches = sourceMatches.filter(match => {
+    if (!isMatchVisible("cricket", match?.id)) return false;
     const matchDate = new Date(match.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);

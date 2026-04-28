@@ -23,6 +23,20 @@ const deactivateMatchSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: subAdmin,
     },
+    marketLocks: {
+      matchOdds: {
+        type: Boolean,
+        default: true,
+      },
+      bookmaker: {
+        type: Boolean,
+        default: true,
+      },
+      fancy: {
+        type: Boolean,
+        default: true,
+      },
+    },
   },
   { timestamps: true }
 );

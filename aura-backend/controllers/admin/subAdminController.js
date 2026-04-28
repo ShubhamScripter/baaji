@@ -9,6 +9,7 @@ import betModel from '../../models/betModel.js';
 import creditRefHistory from '../../models/creditRefHistory.js';
 import DepositHistory from '../../models/depositeHistoryModel.js';
 import LoginHistory from '../../models/loginHistory.js';
+import DeactivatedMatch from '../../models/matchSettingsModel.js';
 import passwordHistory from '../../models/passwordHistory.js';
 import CasinoBetHistory from '../../models/casinoBetHistory.model.js';
 import SubAdmin from '../../models/subAdminModel.js';
@@ -2563,6 +2564,101 @@ console.log("game is:",game);
     }
   } catch (error) {
     console.error('Error updating game lock:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
+export const updateMatchVisibility = async (req, res) => {
+  try {
+    const { matchId, sport, matchName, marketType, isEnabled } = req.body;
+
+    if (!matchId || typeof matchId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'matchId is required',
+      });
+    }
+
+    if (!sport || !['cricket', 'soccer', 'tennis'].includes(sport)) {
+      return res.status(400).json({
+        success: false,
+        message: 'sport must be one of cricket, soccer or tennis',
+      });
+    }
+
+    if (!marketType || !['matchOdds', 'bookmaker', 'fancy'].includes(marketType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'marketType must be one of matchOdds, bookmaker or fancy',
+      });
+    }
+
+    if (typeof isEnabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isEnabled must be boolean',
+      });
+    }
+
+    const normalizedMatchId = String(matchId).trim();
+    let entry = await DeactivatedMatch.findOne({ matchId: normalizedMatchId });
+
+    if (!entry) {
+      entry = await DeactivatedMatch.create({
+        matchId: normalizedMatchId,
+        sport,
+        matchName: matchName || '',
+        marketLocks: {
+          matchOdds: true,
+          bookmaker: true,
+          fancy: true,
+        },
+      });
+    }
+
+    if (!entry.marketLocks) {
+      entry.marketLocks = {
+        matchOdds: true,
+        bookmaker: true,
+        fancy: true,
+      };
+    }
+
+    entry.sport = sport;
+    if (matchName) entry.matchName = matchName;
+    entry.marketLocks[marketType] = isEnabled;
+    entry.markModified('marketLocks');
+
+    const allEnabled =
+      entry.marketLocks.matchOdds === true &&
+      entry.marketLocks.bookmaker === true &&
+      entry.marketLocks.fancy === true;
+
+    if (allEnabled) {
+      await DeactivatedMatch.deleteOne({ matchId: normalizedMatchId });
+    } else {
+      await entry.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Match market visibility updated successfully',
+      data: {
+        matchId: normalizedMatchId,
+        sport,
+        marketType,
+        isEnabled,
+        marketLocks: allEnabled
+          ? { matchOdds: true, bookmaker: true, fancy: true }
+          : entry.marketLocks,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating match visibility:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error',

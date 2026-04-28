@@ -29,6 +29,7 @@ import {
   updateCreditReference,
   updateExploserLimit,
   updateGameLock,
+  updateMatchVisibility,
   updatePartnership,
   userSetting,
   withdrowalAndDeposite,
@@ -97,6 +98,7 @@ router.post('/get/all-bet-list', adminAuthMiddleware, getAllDownlineBets);
 router.post('/get/live-bet-list', adminAuthMiddleware, getLiveDownlineBets);
 router.get('/get/bet-perents/:id', adminAuthMiddleware, parentsDetails);
 router.patch('/gamelock/:id', adminAuthMiddleware, updateGameLock);
+router.patch('/block-market/match-visibility', adminAuthMiddleware, updateMatchVisibility);
 router.get(
   '/getAllUsersWithCompleteInfo',
   adminAuthMiddleware,

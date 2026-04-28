@@ -22,6 +22,7 @@ const toApiMarketName = (name) => MARKET_NAME_TO_API[name] || name;
 
 import betHistoryModel from '../models/betHistoryModel.js';
 import betModel from '../models/betModel.js';
+import DeactivatedMatch from '../models/matchSettingsModel.js';
 import SubAdmin from '../models/subAdminModel.js';
 import TransactionHistory from '../models/transtionHistoryModel.js';
 import { getDateRangeUTC } from '../utils/dateUtils.js';
@@ -105,6 +106,75 @@ async function validateFancyMarket(
 async function validateCasinoMarket(gameId, teamName, xValue, otype) {
   return _validateCasinoMarket(cachedData, { gameId, teamName, xValue, otype });
 }
+
+const normalizeSportKey = (gameName = '') => {
+  const value = String(gameName || '').trim().toLowerCase();
+  if (value.includes('cricket')) return 'cricket';
+  if (value.includes('soccer')) return 'soccer';
+  if (value.includes('tennis')) return 'tennis';
+  return value;
+};
+
+const getSportsMarketType = ({ marketName = '', mname = '', gameType = '' }) => {
+  const normalized = [marketName, mname, gameType]
+    .map((v) => String(v || '').trim().toLowerCase().replace(/[_\s-]+/g, ''))
+    .filter(Boolean);
+
+  if (normalized.some((v) => v.includes('bookmaker'))) return 'bookmaker';
+  if (normalized.some((v) => v === 'normal' || v.includes('fancy'))) return 'fancy';
+  // MATCH_ODDS, Match Odds, matchodds all map here.
+  return 'matchOdds';
+};
+
+const getFancyMarketType = ({ gameType = '', mname = '' }) => {
+  const gt = String(gameType || '').trim().toLowerCase();
+  const mn = String(mname || '').trim().toLowerCase();
+  if (gt === 'normal' || mn === 'normal') return 'fancy';
+  return 'fancy';
+};
+
+const checkMarketVisibilityLock = async ({
+  gameId,
+  gameName,
+  marketType,
+  eventName,
+}) => {
+  const sport = normalizeSportKey(gameName);
+  if (!['cricket', 'soccer', 'tennis'].includes(sport)) return null;
+
+  const matchId = String(gameId || '').trim();
+  let blockedEntry = null;
+  if (matchId) {
+    blockedEntry = await DeactivatedMatch.findOne({ matchId, sport }).lean();
+  }
+
+  // Fallback for mismatched ids: resolve by match name (event title).
+  if (!blockedEntry && eventName) {
+    blockedEntry = await DeactivatedMatch.findOne({
+      sport,
+      matchName: { $regex: `^${String(eventName).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+    }).lean();
+  }
+
+  if (!blockedEntry) return null;
+
+  // Backward compatibility for old records without marketLocks: fully blocked.
+  if (!blockedEntry.marketLocks) {
+    return 'This match is disabled by admin.';
+  }
+
+  if (blockedEntry.marketLocks[marketType] === false) {
+    if (marketType === 'matchOdds') {
+      return 'Match Odds is disabled by admin for this match.';
+    }
+    if (marketType === 'bookmaker') {
+      return 'Bookmaker is disabled by admin for this match.';
+    }
+    return 'Fancy is disabled by admin for this match.';
+  }
+
+  return null;
+};
 
 //  DOUBLE SETTLEMENT FIX: Processing lock to prevent concurrent executions
 let isProcessingCasinoBets = false;
@@ -790,6 +860,7 @@ const placeBet = async (req, res) => {
       gameType,
       eventName,
       marketName,
+      mname,
       gameName,
       teamName,
       otype,
@@ -799,6 +870,17 @@ const placeBet = async (req, res) => {
     // Validate required fields
     if (!gameId || !sid || !price || !xValue || !gameName || !teamName) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const sportsMarketType = getSportsMarketType({ marketName, mname, gameType });
+    const sportsLockMessage = await checkMarketVisibilityLock({
+      gameId,
+      gameName,
+      marketType: sportsMarketType,
+      eventName,
+    });
+    if (sportsLockMessage) {
+      return res.status(403).json({ message: sportsLockMessage });
     }
 
     // Server-side market validation: check suspend status + odds against live data
@@ -1294,6 +1376,7 @@ export const placeFancyBet = async (req, res) => {
       gameType,
       eventName,
       marketName,
+      mname,
       gameName,
       teamName,
       otype,
@@ -1303,6 +1386,16 @@ export const placeFancyBet = async (req, res) => {
     // Validate required fields
     if (!gameId || !sid || !price || !xValue || !gameName || !teamName) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const fancyLockMessage = await checkMarketVisibilityLock({
+      gameId,
+      gameName,
+      marketType: getFancyMarketType({ gameType, mname }),
+      eventName,
+    });
+    if (fancyLockMessage) {
+      return res.status(403).json({ message: fancyLockMessage });
     }
 
     const fancyCheck = await validateFancyMarket(
