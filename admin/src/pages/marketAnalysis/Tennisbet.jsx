@@ -919,24 +919,6 @@ console.log('getFixedOrderedOdds',getFixedOrderedOdds)
                 </div>
               )}
 
-
-              <div className='text-red-500'
-                onClick={() =>
-                  hemdelMasterBook(
-                    '',
-                    matchOdd[0]?.gameType,
-                    matchOddsList
-                  )
-                }
-              >
-                  Downline pnl
-              </div>
-
-
-
-
-
-
               {/* master list popup */}
               {masterpopup && (
                 <div className='modal-overlay fixed top-10 left-0 z-50 w-full'>

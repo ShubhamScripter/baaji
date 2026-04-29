@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { motion } from "framer-motion"; //eslint-disable-line
 import "@fortawesome/fontawesome-free/css/all.min.css";
@@ -10,6 +10,7 @@ import {
   masterBookReducerDownline,
 } from "../../store/marketAnalyzeReducer";
 import { useNavigate } from "react-router";
+import api from "../../utils/axiosInstance";
 
 // "India v Pakistan" -> ["India", "Pakistan"]
 const getTeams = (eventName = "") => {
@@ -157,59 +158,182 @@ const MatchRow = ({ match, isOpen, onToggle, onViewDetails, onViewBook , onEvent
   </tr>
 );
 
-const OddsDetails = ({ odds }) => (
+// Map sport to the live betting-data endpoint (mirrors marketAnalyzeReducer).
+const getBettingEndpoint = (sport = "") => {
+  const s = String(sport).toLowerCase().trim();
+  if (s.includes("cricket")) return "/cricket/betting";
+  if (s.includes("tennis")) return "/tannis/betting";
+  if (s.includes("soccer") || s.includes("football")) return "/soccer/betting";
+  return null;
+};
+
+const unwrapMarketsArray = (payload, maxDepth = 5) => {
+  let cur = payload;
+  for (let i = 0; i < maxDepth; i += 1) {
+    if (Array.isArray(cur)) return cur;
+    if (cur && typeof cur === "object" && "data" in cur) {
+      cur = cur.data;
+    } else {
+      return null;
+    }
+  }
+  return Array.isArray(cur) ? cur : null;
+};
+
+const formatSize = (num) => {
+  if (num == null || num === "") return "";
+  const n = Number(num);
+  if (Number.isNaN(n)) return num;
+  if (n >= 1000) return `${Math.round(n / 100) / 10}k`;
+  return n;
+};
+
+const extractMatchOddsMarket = (bettingData) => {
+  if (!Array.isArray(bettingData)) return null;
+  const market = bettingData.find(
+    (item) =>
+      item?.mname === "MATCH_ODDS" || item?.mname === "TOURNAMENT_WINNER"
+  );
+  if (!market || !Array.isArray(market.section)) return null;
+
+  const rows = market.section.map((sec) => ({
+    team: sec.nat,
+    sid: sec.sid,
+    odds: Array.isArray(sec.odds) ? sec.odds : [],
+    status: sec.gstatus,
+  }));
+
+  return {
+    rows,
+    status: market.status,
+    min: market.min,
+    maxb: market.maxb,
+  };
+};
+
+const ODDS_COL_COLORS = [
+  "bg-[#beddf3]",
+  "bg-[#a2ceed]",
+  "bg-[#72bbef]",
+  "bg-[#faa9ba]",
+  "bg-[#fad1da]",
+  "bg-[#fae5ea]",
+];
+
+const OddsDetailsMessage = ({ children }) => (
   <tr>
     <td></td>
     <td colSpan={5} className="pb-2 bg-gray-100">
-      <div className="max-w-[80%] mx-auto bg-gray-200">
-        <table className="w-full text-xs">
-          <thead>
-            <tr>
-              <th className="text-left px-1 py-1 w-[40%] font-medium">{odds.length} selections Selections</th>
-              <th className="text-left px-1 py-1 w-[20%] font-medium" colSpan={2}>100.8%</th>
-              <th className="py-1 bg-[#72bbef] w-[10%]">Back all</th>
-              <th className="py-1 bg-[#faa9ba] w-[10%]">Lay all</th>
-              <th className="text-left px-1 py-1 w-[20%] font-medium" colSpan={2}>99.5%</th>
-            </tr>
-          </thead>
-          <tbody className="border border-y border-y-[#7e97a7]">
-            {odds.map((o, j) => (
-              <tr key={j} className="border-y border-y-[#7e97a7]">
-                <td className="px-2 py-1 border-r border-r-[#7e97a7] bg-white w-[40%]">
-                  <span className="text-xs font-bold">{o.team}</span>
-                </td>
-                <td className="text-center py-1 border-r border-r-[#7e97a7] bg-[#beddf3] w-[10%]">
-                  <div className="font-bold">1.3</div>
-                  <div>4000</div>
-                </td>
-                <td className="text-center py-1 border-r border-r-[#7e97a7] bg-[#a2ceed] w-[10%]">
-                  <div className="font-bold">2.6</div>
-                  <div>700</div>
-                </td>
-                <td className="text-center py-1 border-r border-r-[#7e97a7] bg-[#72bbef] w-[10%]">
-                  <div className="font-bold">1.9</div>
-                  <div>1287</div>
-                </td>
-                <td className="text-center py-1 border-r border-r-[#7e97a7] bg-[#faa9ba] w-[10%]">
-                  <div className="font-bold">2.7</div>
-                  <div>42112</div>
-                </td>
-                <td className="text-center py-1 border-r border-r-[#7e97a7] bg-[#fad1da] w-[10%]">
-                  <div className="font-bold">3.5</div>
-                  <div>1343</div>
-                </td>
-                <td className="text-center py-1 border-r border-r-[#7e97a7] bg-[#fae5ea] w-[10%]">
-                  <div className="font-bold">4.1</div>
-                  <div>5212</div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="max-w-[80%] mx-auto bg-gray-200 py-3 text-center text-xs text-gray-600">
+        {children}
       </div>
     </td>
   </tr>
 );
+
+const OddsDetails = ({ bettingData, isLoading, fallbackOdds }) => {
+  if (isLoading) return <OddsDetailsMessage>Loading odds...</OddsDetailsMessage>;
+
+  const market = extractMatchOddsMarket(bettingData);
+  console.log("[OddsDetails] render", { bettingData, market });
+
+  const rows = market?.rows && market.rows.length > 0
+      ? market.rows
+      : (fallbackOdds || []).map((o) => ({
+          team: o.team,
+          sid: o.team,
+          odds: [],
+          status: "",
+        }));
+
+  if (!rows.length) {
+    return <OddsDetailsMessage>No odds available</OddsDetailsMessage>;
+  }
+
+  return (
+    <tr>
+      <td></td>
+      <td colSpan={5} className="pb-2 bg-gray-100">
+        <div className="max-w-[80%] mx-auto bg-gray-200 relative">
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className="text-left px-1 py-1 w-[40%] font-medium">
+                  {rows.length} Selections
+                </th>
+                <th
+                  className="text-left px-1 py-1 w-[20%] font-medium"
+                  colSpan={2}
+                ></th>
+                <th className="py-1 bg-[#72bbef] w-[10%]">Back</th>
+                <th className="py-1 bg-[#faa9ba] w-[10%]">Lay</th>
+                <th
+                  className="text-left px-1 py-1 w-[20%] font-medium"
+                  colSpan={2}
+                ></th>
+              </tr>
+            </thead>
+            <tbody className="border border-y border-y-[#7e97a7]">
+              {rows.map((row, j) => {
+                const rowSuspended = row.status === "SUSPENDED";
+                return (
+                  <tr
+                    key={row.sid ?? j}
+                    className="border-y border-y-[#7e97a7]"
+                  >
+                    <td className="px-2 py-1 border-r border-r-[#7e97a7] bg-white w-[40%]">
+                      <span className="text-xs font-bold">{row.team}</span>
+                    </td>
+                    {rowSuspended ? (
+                      <td colSpan={6} className="relative p-0 w-[60%]">
+                        <div className="grid grid-cols-6 opacity-40">
+                          {ODDS_COL_COLORS.map((color, i) => {
+                            const odd = row.odds?.[i];
+                            return (
+                              <div
+                                key={i}
+                                className={`text-center py-1 border-r border-r-[#7e97a7] ${color}`}
+                              >
+                                <div className="font-bold">
+                                  {odd?.odds ?? "-"}
+                                </div>
+                                <div>{formatSize(odd?.size)}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <span className="text-red-600 text-sm font-bold tracking-widest">
+                            SUSPENDED
+                          </span>
+                        </div>
+                      </td>
+                    ) : (
+                      ODDS_COL_COLORS.map((color, i) => {
+                        const odd = row.odds?.[i];
+                        return (
+                          <td
+                            key={i}
+                            className={`text-center py-1 border-r border-r-[#7e97a7] ${color} w-[10%]`}
+                          >
+                            <div className="font-bold">
+                              {odd?.odds ?? "-"}
+                            </div>
+                            <div>{formatSize(odd?.size)}</div>
+                          </td>
+                        );
+                      })
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  );
+};
 
 const SportTable = ({
   sport,
@@ -218,7 +342,9 @@ const SportTable = ({
   onToggle,
   onViewDetails,
   onViewBook,
-  onEventType
+  onEventType,
+  bettingDataMap,
+  bettingDataLoadingMap,
 }) => (
   <table className="w-full mt-3">
     <SportHeader sport={sport} />
@@ -230,13 +356,17 @@ const SportTable = ({
             <MatchRow
               match={match}
               isOpen={isOpen}
-              onToggle={() => onToggle(match.idx)}
+              onToggle={() => onToggle(match)}
               onViewDetails={onViewDetails}
               onViewBook={onViewBook}
               onEventType={onEventType}
             />
-            {isOpen && match.odds.length > 0 && (
-              <OddsDetails odds={match.odds} />
+            {isOpen && (
+              <OddsDetails
+                bettingData={bettingDataMap?.[match.gameId]}
+                isLoading={!!bettingDataLoadingMap?.[match.gameId]}
+                fallbackOdds={match.odds}
+              />
             )}
           </React.Fragment>
         );
@@ -273,6 +403,8 @@ function MatchOdds() {
   const [masterDownline, setMasterDownline] = useState([]);
   const [teamHeaders, setTeamHeaders] = useState([]);
   const [masterContext, setMasterContext] = useState(null);
+  const [bettingDataMap, setBettingDataMap] = useState({});
+  const [bettingDataLoadingMap, setBettingDataLoadingMap] = useState({});
 
   useEffect(() => {
     dispatch(fetchMatchOddsSummary());
@@ -304,8 +436,37 @@ function MatchOdds() {
     };
   }, [showMasterDownline]);
 
-  const toggleRow = (index) => {
-    setActiveRows((prev) => (prev === index ? null : index));
+  const fetchBettingDataFor = useCallback(
+    async (match) => {
+      const endpoint = getBettingEndpoint(match?.sport);
+      if (!endpoint || !match?.gameId) return;
+      if (bettingDataMap[match.gameId] || bettingDataLoadingMap[match.gameId])
+        return;
+
+      setBettingDataLoadingMap((prev) => ({ ...prev, [match.gameId]: true }));
+      try {
+        const res = await api.get(`${endpoint}?gameid=${match.gameId}`);
+        const markets = unwrapMarketsArray(res?.data);
+        setBettingDataMap((prev) => ({ ...prev, [match.gameId]: markets }));
+      } catch (err) {
+        console.error("Failed to load betting data", err);
+        setBettingDataMap((prev) => ({ ...prev, [match.gameId]: null }));
+      } finally {
+        setBettingDataLoadingMap((prev) => ({
+          ...prev,
+          [match.gameId]: false,
+        }));
+      }
+    },
+    [bettingDataMap, bettingDataLoadingMap]
+  );
+
+  const toggleRow = (match) => {
+    const idx = typeof match === "object" ? match.idx : match;
+    setActiveRows((prev) => (prev === idx ? null : idx));
+    if (typeof match === "object" && activeRows !== idx) {
+      fetchBettingDataFor(match);
+    }
   };
 
   const handleViewDetails = (match) => {
@@ -414,6 +575,8 @@ function MatchOdds() {
           onViewDetails={handleViewDetails}
           onViewBook={handleViewBook}
           onEventType={handleEventBook}
+          bettingDataMap={bettingDataMap}
+          bettingDataLoadingMap={bettingDataLoadingMap}
         />
       ))}
 
@@ -527,7 +690,6 @@ function MatchOdds() {
           </motion.div>
         </div>
       )}
-
 
       {riskBetfair && (
         <div className="modal-overlay1 fixed top-0 left-0 w-full h-full z-9999 bg-black/40 flex items-start justify-center">

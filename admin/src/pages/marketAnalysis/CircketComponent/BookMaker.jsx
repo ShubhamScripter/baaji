@@ -214,15 +214,15 @@ const BookMaker = ({ BookmakerList }) => {
                             }`}
                           >
                              {odd ? (
-        <>
-          <div className="font-bold">{odd.odds}</div>
-          <div className="text-gray-800">
-            {formatToK(odd.size)}
-          </div>
-        </>
-      ) : (
-        <div className="opacity-30">--</div> // empty placeholder
-      )}
+                                <>
+                                  <div className="font-bold">{odd.odds}</div>
+                                  <div className="text-gray-800">
+                                    {formatToK(odd.size)}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="opacity-30">--</div> // empty placeholder
+                              )}
                           </div>
                         ))}
                       </div>
