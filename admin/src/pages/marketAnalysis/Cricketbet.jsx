@@ -959,17 +959,7 @@ export default function Cricketbet() {
                                           </div>
                                         </span>
                                         <span className='hidden border-b border-gray-400 px-2 py-1 text-center md:block'>
-                                          <button
-                                            className='rounded bg-gray-700 px-4 py-1 text-xs text-white hover:bg-[#243a48]'
-                                            onClick={() =>
-                                              handleOpenMasterBook(
-                                                team,
-                                                activeSubTab
-                                              )
-                                            }
-                                          >
-                                            Book
-                                          </button>
+                                          
                                         </span>
                                         {status === 'SUSPENDED' ? (
                                           <div className='item-center relative col-span-2 flex'>

@@ -139,7 +139,7 @@ const TiedMatch = ({ tiedMatchList }) => {
     })();
 
     return (
-      <div className='col-span-5 p-1 pl-4 text-left text-sm font-bold md:col-span-3 md:text-[11px]'>
+      <div className='col-span-5 pl-1 py-1.5 text-left text-sm font-bold md:col-span-3 md:text-[11px]'>
         <div>
           <p>{team}</p>
           <p style={{ color: betColor }}>{displayValue || '0.00'}</p>
@@ -160,15 +160,10 @@ const TiedMatch = ({ tiedMatchList }) => {
         {tiedMatchList.length > 0 && (
           <div>
             <div className='mx-auto bg-gray-200 text-[13px]'>
-              <div className='flex items-center justify-between rounded-t-md bg-white'>
-                <div className='bg-blue flex gap-3 rounded-tr-3xl p-2 px-4 font-bold text-white'>
+              <div className='flex items-center justify-between bg-[#2c3e50] text-white px-3 py-1.5 mt-1'>
                   <span>{tiedData[0]?.mname}</span>
-                  <span className='mt-1 text-lg font-black'>
-                    <HiOutlineExclamationCircle />
-                  </span>
-                </div>
+                  <span>Min: {tiedMatchList[0]?.min} | Max: {formatToK(tiedMatchList[0]?.maxb)}</span>
               </div>
-
               {tiedData[0]?.status === 'SUSPENDED' ? (
                 <div className='relative mx-auto border-2 border-red-500'>
                   <div className='justify-centerz-10 absolute flex h-full w-full items-center bg-[#e1e1e17e]'>
@@ -177,26 +172,16 @@ const TiedMatch = ({ tiedMatchList }) => {
                     </p>
                   </div>
                   <div className='grid grid-cols-9 border-b border-gray-300 bg-white text-center'>
-                    <div className='col-span-5 p-1 md:col-span-5'>
-                      <div className='rounded-md bg-[#bed5d8] p-0.5 text-xs text-gray-600 md:hidden'>
-                        <span className='text-[#315195]'>Min/Max </span>
-                        {tiedMatchList[0]?.min}-{' '}
-                        {formatToK(tiedMatchList[0]?.maxb)}
-                      </div>
+                    <div className='col-span-5 p-1 md:col-span-5 text-left'>
+                      Min: {tiedMatchList[0]?.min} | Max: {formatToK(tiedMatchList[0]?.maxb)}
                     </div>
-                    <div className='col-span-2 bg-[#72bbef] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-t-2xl'>
+                    <div className='col-span-2 bg-[#72bbef] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-tl-xl m-0.5'>
                       Back
                     </div>
-                    <div className='col-span-2 bg-[#faa9ba] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-t-2xl'>
+                    <div className='col-span-2 bg-[#faa9ba] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-tr-xl m-0.5'>
                       Lay
                     </div>
-                    <div className='col-span-2 hidden rounded-lg p-1 text-[11px] font-semibold md:block'>
-                      <div className='rounded-md bg-[#bed5d8] p-0.5'>
-                        <span className='text-[#315195]'>Min/Max </span>
-                        {tiedMatchList[0]?.min}-
-                        {formatToK(tiedMatchList[0]?.maxb)}
-                      </div>
-                    </div>
+                    <div className='col-span-2 hidden rounded-lg p-1 text-[11px] font-semibold md:block'></div>
                   </div>
                   {tiedData.map(({ team, odds }, index) => (
                     <div key={index}>
@@ -235,26 +220,16 @@ const TiedMatch = ({ tiedMatchList }) => {
               ) : (
                 <div>
                   <div className='grid grid-cols-9 border-b border-gray-300 bg-white text-center'>
-                    <div className='col-span-5 p-1 md:col-span-5'>
-                      <div className='rounded-md bg-[#bed5d8] p-0.5 text-xs text-gray-600 md:hidden'>
-                        <span className='text-[#315195]'>Min/Max </span>
-                        {tiedMatchList[0]?.min}-
-                        {formatToK(tiedMatchList[0]?.maxb)}
-                      </div>
+                  <div className='col-span-5 p-1 md:col-span-5 text-left'>
+                      Min: {tiedMatchList[0]?.min} | Max: {formatToK(tiedMatchList[0]?.maxb)}
                     </div>
-                    <div className='col-span-2 bg-[#72bbef] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-t-2xl'>
+                    <div className='col-span-2 bg-[#72bbef] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-tl-xl m-0.5'>
                       Back
                     </div>
-                    <div className='col-span-2 bg-[#faa9ba] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-t-2xl'>
+                    <div className='col-span-2 bg-[#faa9ba] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-tr-xl m-0.5'>
                       Lay
                     </div>
-                    <div className='col-span-2 hidden rounded-lg p-1 text-[11px] font-semibold md:block'>
-                      <div className='rounded-md bg-[#bed5d8] p-0.5'>
-                        <span className='text-[#315195]'>Min/Max </span>
-                        {tiedMatchList[0]?.min}-
-                        {formatToK(tiedMatchList[0]?.maxb)}
-                      </div>
-                    </div>
+                    <div className='col-span-2 hidden rounded-lg p-1 text-[11px] font-semibold md:block'></div>
                   </div>
                   {tiedData.map(({ team, odds }, index) => (
                     <div key={index}>
@@ -269,7 +244,7 @@ const TiedMatch = ({ tiedMatchList }) => {
                         {odds.map((odd, i) => (
                           <div
                             key={i}
-                            className={`col-span-2 cursor-pointer p-1 md:col-span-1 ${
+                            className={`col-span-2 p-1 m-0.5 md:col-span-1 ${
                               i === 0
                                 ? 'hidden bg-sky-100 md:block'
                                 : i === 1

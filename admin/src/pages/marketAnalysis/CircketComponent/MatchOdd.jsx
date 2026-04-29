@@ -160,7 +160,7 @@ const MatchOdd = ({ matchOddsList }) => {
             <div className='mx-auto bg-gray-200 text-[13px]'>
               <div className='flex items-center justify-between bg-[#2c3e50] text-white px-3 py-1.5 mt-1'>
                   <span>{oddsData[0]?.mname}</span>
-                  <span>Min: {oddsData[0]?.min} | Max: {formatToK(matchOddsList[0]?.maxb)}</span>
+                  <span>Min: {matchOddsList[0]?.min} | Max: {formatToK(matchOddsList[0]?.maxb)}</span>
               </div>
 
               {oddsData[0]?.status === 'SUSPENDED' ? (
@@ -173,7 +173,7 @@ const MatchOdd = ({ matchOddsList }) => {
 
                   <div className='grid grid-cols-9 border-b border-gray-300 bg-white text-center'>
                     <div className='col-span-5 p-1 md:col-span-5 text-left'>
-                      Min: {oddsData[0]?.min} | Max: {formatToK(matchOddsList[0]?.maxb)}
+                      Min: {matchOddsList[0]?.min} | Max: {formatToK(matchOddsList[0]?.maxb)}
                     </div>
                     <div className='col-span-2 bg-[#72bbef] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-tl-xl m-0.5'>
                       Back
@@ -221,7 +221,7 @@ const MatchOdd = ({ matchOddsList }) => {
                 <div>
                   <div className='grid grid-cols-9 border-b border-gray-300 bg-white text-center'>
                     <div className='col-span-5 p-1 md:col-span-5 text-left'>
-                        Min: {oddsData[0]?.min} | Max: {formatToK(matchOddsList[0]?.maxb)}
+                        Min: {matchOddsList[0]?.min} | Max: {formatToK(matchOddsList[0]?.maxb)}
                     </div>
                     <div className='col-span-2 bg-[#72bbef] p-1 font-bold text-slate-800 md:col-span-1 md:md:rounded-tl-xl m-0.5'>
                       Back
