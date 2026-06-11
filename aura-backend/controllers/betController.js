@@ -939,56 +939,57 @@ const placeBet = async (req, res) => {
     if (!existingExact) {
       market_id = Math.floor(10000000 + Math.random() * 90000000);
 
+      const meta = marketCheck.marketMeta || {};
+
       //Here we are using the external Api
       try {
-        // Look up beventId from match list (shared by fancy and sports payloads)
-        let beventId = '';
-        try {
-          const matchListData = await apiFetchMatchList(Number(sid));
-          if (matchListData?.success && matchListData.data) {
-            const allMatches = [
-              ...(matchListData.data.t1 || []),
-              ...(matchListData.data.t2 || []),
-            ];
-            const matched = allMatches.find((m) => {
-              const matchId = String(m.beventId || m.oldgmid || m.gmid);
-              return matchId === String(gameId);
-            });
-            beventId = matched?.beventId ? String(matched.beventId) : '';
-          }
-        } catch (err) {
-          console.warn(
-            `[BET] Failed to fetch match list for beventId lookup:`,
-            err.message
-          );
-        }
-
         if (gameType === 'fancy1' || gameType === 'oddeven') {
-          // fancy1 and oddeven use the same request format as fancy (session) bets:
-          // no runners, carries fancyId + beventId instead.
+          // fancy1/oddeven: Provider C fancy payload (same shape as placeFancyBet)
+          let beventId = '';
+          try {
+            const matchListData = await apiFetchMatchList(Number(sid));
+            if (matchListData?.success && matchListData.data) {
+              const allMatches = [
+                ...(matchListData.data.t1 || []),
+                ...(matchListData.data.t2 || []),
+              ];
+              const matched = allMatches.find((m) => {
+                const matchId = String(m.beventId || m.oldgmid || m.gmid);
+                return matchId === String(gameId);
+              });
+              beventId = matched?.beventId ? String(matched.beventId) : '';
+            }
+          } catch (err) {
+            console.warn(
+              `[BET] Failed to fetch match list for beventId lookup:`,
+              err.message
+            );
+          }
+
           await apiSendBetIncoming({
             sport_id: sid,
             sportName: (gameName || '').replace(/\s*game\s*$/i, ''),
-            event_id: marketMeta.gmid || null,
+            event_id: meta.gmid || gameId,
             beventId,
             event_name: eventName,
-            fancyId: marketMeta.fancyId ? String(marketMeta.fancyId) : null,
+            fancyId: meta.fancyId ? String(meta.fancyId) : null,
             market_name: toApiMarketName(marketName),
             fancyType: gameType,
           });
         } else {
           await apiSendBetIncoming({
-            event_id: marketMeta?.gmid ?? null,
+            event_id: meta.gmid || gameId,
             event_name: eventName,
-            market_id: market_id,
+            market_id: meta.mid || null,
             market_name: toApiMarketName(marketName),
             market_type: gameType,
             client_ref: null,
             sport_id: sid,
+            sport_name: (gameName || '').replace(/\s*game\s*$/i, ''),
             fancyId: null,
-            fancymid: marketMeta.mid || null,
-            bevent_id: beventId || null,
-            runners: marketMeta.runners || [],
+            fancymid: meta.mid || null,
+            bevent_id: gameId || null,
+            runners: meta.runners || [],
           });
         }
       } catch (apiErr) {
@@ -1477,7 +1478,7 @@ export const placeFancyBet = async (req, res) => {
         await apiSendBetIncoming({
           sport_id: sid,
           sportName: (gameName || '').replace(/\s*game\s*$/i, ''),
-          event_id: fancyMeta?.gmid ?? null,
+          event_id: fancyMeta.gmid || gameId,
           beventId,
           event_name: eventName,
           fancyId: fancyMeta.fancyId ? String(fancyMeta.fancyId) : null,
@@ -3018,6 +3019,9 @@ export const updateFancyBetResult = async (req, res) => {
           const isProviderB =
             getProviderName() === 'providerb' ||
             getProviderName() === 'provider_b';
+          const isProviderC =
+            getProviderName() === 'providerc' ||
+            getProviderName() === 'provider_c';
 
           for (const bet of groupedBets[gameId]) {
             const sid = bet.sid;
@@ -3028,8 +3032,8 @@ export const updateFancyBetResult = async (req, res) => {
             if (process.env.DEV_MOCK_API === '1') {
               score = '200';
               console.log(` [MOCK API] Using test score: ${score}`);
-            } else if (isProviderB && bet.fancyId) {
-              // Provider B: use /cricket/fancyresult with eventId + fancyId
+            } else if ((isProviderB || isProviderC) && bet.fancyId) {
+              // Provider B/C: use /cricket/fancyresult with eventId + fancyId
               try {
                 const fancyResult = await apiFetchCricketFancyResult(
                   bet.gameId,

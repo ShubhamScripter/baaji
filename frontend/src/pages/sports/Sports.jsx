@@ -7,9 +7,9 @@ import Soccer from './Soccer';
 import Tennis from './Tennis';
 import { useLocation } from 'react-router-dom';
 import { useDispatch } from "react-redux";
-import { fetchSoccerInplayData } from "../../features/sports/soccerSlice";
-import { fetchCricketInplayData } from "../../features/sports/cricketSlice";
-import { fetchTennisInplayData } from "../../features/sports/tennisSlice";
+import { fetchCricketData } from "../../features/sports/cricketSlice";
+import { fetchSoccerData } from "../../features/sports/soccerSlice";
+import { fetchTennisData } from "../../features/sports/tennisSlice";
 function Sports() {
   const location = useLocation();
   const dispatch = useDispatch();
@@ -25,12 +25,10 @@ function Sports() {
   }, [location.state]);
 
   useEffect(() => {
-    if (Active === "InPlay") {
-      dispatch(fetchCricketInplayData());
-      dispatch(fetchSoccerInplayData());
-      dispatch(fetchTennisInplayData());
-    }
-  }, [Active, dispatch]);
+    dispatch(fetchCricketData());
+    dispatch(fetchSoccerData());
+    dispatch(fetchTennisData());
+  }, [dispatch]);
 
   let content;
     if (Filter === "All") {

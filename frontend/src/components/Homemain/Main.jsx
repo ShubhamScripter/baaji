@@ -3,9 +3,9 @@ import { IoAlarmSharp } from "react-icons/io5";
 import { FaCalendar, FaCalendarAlt } from "react-icons/fa";
 import { HiTrophy } from "react-icons/hi2";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchCricketData, fetchCricketInplayData } from "../../features/sports/cricketSlice";
-import { fetchSoccerData, fetchSoccerInplayData } from "../../features/sports/soccerSlice";
-import { fetchTennisData, fetchTennisInplayData } from "../../features/sports/tennisSlice";
+import { fetchCricketData } from "../../features/sports/cricketSlice";
+import { fetchSoccerData } from "../../features/sports/soccerSlice";
+import { fetchTennisData } from "../../features/sports/tennisSlice";
 import { useNavigate } from 'react-router-dom';
 import api from "../../utils/axiosConfig";
 import useDeactivatedMatches from "../../hooks/useDeactivatedMatches";
@@ -81,9 +81,6 @@ function Main() {
   const cricket = useSelector(state => state.cricket.matches || []);
   const soccer = useSelector(state => state.soccer.soccerData || []);
   const tennis = useSelector(state => state.tennis.data || []);
-  const cricketInplay = useSelector(state => state.cricket.inplayMatches || []);
-  const soccerInplay = useSelector(state => state.soccer.soccerInplayData || []);
-  const tennisInplay = useSelector(state => state.tennis.inplayData || []);
   const [enabledSports, setEnabledSports] = useState({
     ...defaultVisibleSports,
   });
@@ -97,11 +94,8 @@ function Main() {
 
   useEffect(() => {
     dispatch(fetchCricketData());
-    dispatch(fetchCricketInplayData());
     dispatch(fetchSoccerData());
-    dispatch(fetchSoccerInplayData());
     dispatch(fetchTennisData());
-    dispatch(fetchTennisInplayData());
   }, [dispatch]);
 
   useEffect(() => {
@@ -140,12 +134,7 @@ function Main() {
   // If data hasn't loaded yet, show loading
   if (
     visibilityLoading ||
-    (!cricket.length &&
-    !soccer.length &&
-    !tennis.length &&
-    !cricketInplay.length &&
-    !soccerInplay.length &&
-    !tennisInplay.length)
+    (!cricket.length && !soccer.length && !tennis.length)
   ) {
     return <div className="text-center py-4"><Spinner/></div>;
   }
@@ -160,13 +149,13 @@ function Main() {
     ? tennis.filter((m) => isMatchVisible("tennis", m?.id))
     : [];
   const visibleCricketInplay = enabledSports.cricket
-    ? cricketInplay.filter((m) => isMatchVisible("cricket", m?.id))
+    ? visibleCricket.filter((m) => m?.inplay === true)
     : [];
   const visibleSoccerInplay = enabledSports.soccer
-    ? soccerInplay.filter((m) => isMatchVisible("soccer", m?.id))
+    ? visibleSoccer.filter((m) => m?.inplay === true || m?.iplay === true)
     : [];
   const visibleTennisInplay = enabledSports.tennis
-    ? tennisInplay.filter((m) => isMatchVisible("tennis", m?.id))
+    ? visibleTennis.filter((m) => m?.inplay === true || m?.iplay === true)
     : [];
 
   const allSports = [...visibleCricket, ...visibleSoccer, ...visibleTennis];

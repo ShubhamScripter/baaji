@@ -318,7 +318,7 @@ import graph from '../../assets/graph.png'
 import Live from '../../assets/icon/live.webp'
 import { GrStarOutline } from "react-icons/gr";
 import { IoInformationCircle } from "react-icons/io5";
-import { useState,useEffect,useRef} from 'react'
+import { useState,useEffect,useRef,useMemo} from 'react'
 import Matchodds from '../../components/leaguescomp/Matchodds';
 import Bookmakers from '../../components/leaguescomp/Bookmakers';
 import Fancybet from '../../components/leaguescomp/Fancybet';
@@ -326,7 +326,7 @@ import Sportbook from '../../components/leaguescomp/Sportbook';
 import SoccerOver05 from '../../components/leaguescomp/SoccerOver05';
 import SoccerOver15 from '../../components/leaguescomp/SoccerOver15';
 import SoccerOver25 from '../../components/leaguescomp/SoccerOver25';
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import BetCard from './BetCard';
 import { wsClient } from '../../utils/wsClient';
@@ -336,18 +336,40 @@ import { getUser } from '../../features/auth/authSlice';
 import { div } from 'motion/react-client';
 import Spinner from '../../components/Spinner';
 import { toast } from 'react-hot-toast';
-import { getSportsMediaUrls, SPORTS_MEDIA_TYPE } from '../../utils/sportsMediaUrls';
+import {
+  getSportsMediaUrls,
+  resolveBeventId,
+  SPORTS_MEDIA_TYPE,
+} from '../../utils/sportsMediaUrls';
 import useMatchMarketLocks from '../../hooks/useMatchMarketLocks';
 function Fullmarket1() {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { gameid } = useParams() || {};
   const { match } = useParams() || {};
-  const key = "gk_a42ceaa6f610bab8cc5bd28949f57168a903579db341dba8";
-  const mediaUrls = getSportsMediaUrls({
-    sport: SPORTS_MEDIA_TYPE.FOOTBALL,
-    gameid,
-    key,
-  });
+  const { soccerData: soccerMatches = [] } = useSelector((state) => state.soccer);
+  const key =
+    import.meta.env.VITE_PROVIDER_C_API_KEY ||
+    'gk_5db268ed77db3fe9577d7085eb75c2d23467093541ab3ac2';
+  const beventId = useMemo(
+    () =>
+      resolveBeventId({
+        locationState: location.state,
+        matches: soccerMatches,
+        gameid,
+      }),
+    [location.state, soccerMatches, gameid]
+  );
+  const mediaUrls = useMemo(
+    () =>
+      getSportsMediaUrls({
+        sport: SPORTS_MEDIA_TYPE.FOOTBALL,
+        gameid,
+        key,
+        beventId,
+      }),
+    [gameid, key, beventId]
+  );
   const [selected, setSelected] = useState("Fancybet");
   const[isFacncyActive, setIsFancyActive] = useState(true);
   const [isLive, setIsLive] = useState(false);
@@ -397,59 +419,58 @@ function Fullmarket1() {
     teamName: "",
   });
 
-  // ✅ Fetch once before using socket (optional)
-  useEffect(() => {
-    if (gameid) {
-      setLoader(true);
-      dispatch(fetchSoccerBatingData(gameid)).finally(() => {
-        setLoader(false);
-      });
-    }
-  }, [dispatch, gameid]);
-
+  // Load betting data once + subscribe for live updates (no duplicate HTTP fetch)
   useEffect(() => {
     if (!gameid) return;
+
+    let cancelled = false;
+    const hasCachedMarkets =
+      Array.isArray(battingData) && battingData.length > 0;
+    if (hasCachedMarkets) {
+      setBettingData(battingData);
+      setLoader(false);
+    } else {
+      setBettingData(null);
+      setLoader(true);
+    }
+
     wsClient.send({ type: "subscribe", gameid, apitype: "soccer" });
 
     const unsubscribe = wsClient.subscribe((message) => {
       if (
-        message?.type === "bettingData" &&
-        String(message.gameid) === String(gameid)
+        message?.type !== "bettingData" ||
+        String(message.gameid) !== String(gameid)
       ) {
-        setBettingData(message.data);
+        return;
+      }
+      const raw = message.data;
+      const markets = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.result)
+            ? raw.result
+            : [];
+      if (markets.length > 0) {
+        setBettingData(markets);
+        if (!cancelled) setLoader(false);
       }
     });
 
-    return () => unsubscribe();
-  }, [gameid]);
-
-    useEffect(() => {
-    let intervalId;
-
-    if (gameid) {
-      // Set loader true before initial fetch
-      setLoader(true);
-
-      const fetchData = async () => {
-        await dispatch(fetchSoccerBatingData(gameid));
-        setLoader(false); // Stop loader after first successful fetch
-      };
-
-      fetchData();
-
-      // intervalId = setInterval(() => {
-      //   dispatch(fetchCricketBatingData(gameid));
-      // }, 2000);
-    }
-
+    dispatch(fetchSoccerBatingData(gameid)).finally(() => {
+      if (!cancelled) setLoader(false);
+    });
 
     return () => {
-      clearInterval(intervalId);
+      cancelled = true;
+      unsubscribe();
     };
-  }, [gameid]);
+  }, [dispatch, gameid]);
 
   useEffect(() => {
-    setBettingData(battingData);
+    if (Array.isArray(battingData) && battingData.length > 0) {
+      setBettingData(battingData);
+    }
   }, [battingData]);
 
   // ✅ Use socket data for all lists
@@ -532,9 +553,13 @@ function Fullmarket1() {
       try {
         if (isInitial) setScorecardLoading(true);
 
-        const response = await fetch(
-          mediaUrls.scorecardUrl
-        );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(mediaUrls.scorecardUrl, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         const json = await response.json();
 
         const iframeUrl = json?.iframe?.url;
@@ -570,7 +595,13 @@ function Fullmarket1() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [isLive, gameid]);
+  }, [isLive, gameid, mediaUrls.scorecardUrl]);
+
+  useEffect(() => {
+    setLiveStreamHtml(null);
+    setLiveStreamSrc(null);
+    setLiveStreamLoading(false);
+  }, [isLive, gameid, match]);
 
   // Fetch live stream when Live is selected
   // useEffect(() => {

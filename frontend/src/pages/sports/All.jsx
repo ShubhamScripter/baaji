@@ -156,17 +156,16 @@ import s from '../../assets/icon/s.png';
 import y from '../../assets/icon/youtube.png'
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from "react-redux";
-import { fetchCricketData, fetchCricketInplayData } from '../../features/sports/cricketSlice';
+import { fetchCricketData } from '../../features/sports/cricketSlice';
 
 function All({ activeTab }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const { matches, inplayMatches, loader, error } = useSelector((state) => state.cricket);
+  const { matches } = useSelector((state) => state.cricket);
   const [openIndexes, setOpenIndexes] = useState([0]);
-  console.log("cricket matches",matches)
 
-  const sourceMatches = activeTab === "InPlay" ? inplayMatches : matches;
+  const sourceMatches = matches || [];
 
   const filteredMatches = (Array.isArray(sourceMatches) ? sourceMatches : []).filter((match) => {
     const matchDate = new Date(match.date);
@@ -206,16 +205,9 @@ function All({ activeTab }) {
       prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
     );
   };
-  console.log("grouped cricket data",groupedArray)
   useEffect(() => {
     dispatch(fetchCricketData());
   }, [dispatch]);
-
-  useEffect(() => {
-    if (activeTab === "InPlay") {
-      dispatch(fetchCricketInplayData());
-    }
-  }, [activeTab, dispatch]);
 
   const handleClick = (match) => {
     navigate(`/sports/fullmarket/${match.match}/${match.id}`);

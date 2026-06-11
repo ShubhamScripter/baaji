@@ -319,12 +319,12 @@ import graph from '../../assets/graph.png'
 import Live from '../../assets/icon/live.webp'
 import { GrStarOutline } from "react-icons/gr";
 import { IoInformationCircle } from "react-icons/io5";
-import { useState,useEffect,useRef} from 'react'
+import { useState,useEffect,useRef,useMemo} from 'react'
 import Matchodds from '../../components/leaguescomp/Matchodds';
 import Bookmakers from '../../components/leaguescomp/Bookmakers';
 import Fancybet from '../../components/leaguescomp/Fancybet';
 import Sportbook from '../../components/leaguescomp/Sportbook';
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import BetCard from './BetCard';
 import { wsClient } from '../../utils/wsClient';
@@ -334,23 +334,44 @@ import {fetchTannisBatingData} from '../../features/sports/tennisSlice'
 import { getUser } from '../../features/auth/authSlice';
 import Spinner from '../../components/Spinner';
 import { toast } from 'react-hot-toast';
-import { getSportsMediaUrls, SPORTS_MEDIA_TYPE } from '../../utils/sportsMediaUrls';
+import {
+  getSportsMediaUrls,
+  resolveBeventId,
+  SPORTS_MEDIA_TYPE,
+} from '../../utils/sportsMediaUrls';
 import useMatchMarketLocks from '../../hooks/useMatchMarketLocks';
 function Fullmarket2() {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { gameid } = useParams() || {};
   const { match } = useParams() || {};
+  const { data: tennisMatches = [] } = useSelector((state) => state.tennis);
   const key =
+    import.meta.env.VITE_PROVIDER_C_API_KEY ||
     import.meta.env.VITE_BULKAPI_KEY ||
-    "gk_4b8bf40e61c7828c64e1b1f684cc4eaa6a243cef3d4c622f";
-  const mediaUrls = getSportsMediaUrls({
-    sport: SPORTS_MEDIA_TYPE.TENNIS,
-    gameid,
-    key,
-  });
+    'gk_5db268ed77db3fe9577d7085eb75c2d23467093541ab3ac2';
+  const beventId = useMemo(
+    () =>
+      resolveBeventId({
+        locationState: location.state,
+        matches: tennisMatches,
+        gameid,
+      }),
+    [location.state, tennisMatches, gameid]
+  );
+  const mediaUrls = useMemo(
+    () =>
+      getSportsMediaUrls({
+        sport: SPORTS_MEDIA_TYPE.TENNIS,
+        gameid,
+        key,
+        beventId,
+      }),
+    [gameid, key, beventId]
+  );
   const [selected, setSelected] = useState("Fancybet");
   const[isFacncyActive, setIsFancyActive] = useState(true);
-  const [isLive, setIsLive] = useState(false);
+  const [isLive, setIsLive] = useState(true);
 
   const [betSlipOpen, setBetSlipOpen] = useState(false);
   const [betSlipData, setBetSlipData] = useState(null);
@@ -397,35 +418,58 @@ function Fullmarket2() {
     teamName: "",
   });
 
-  // ✅ Fetch once before using socket (optional) - Match cricket pattern
-  useEffect(() => {
-    if (gameid) {
-      setLoader(true);
-      dispatch(fetchTannisBatingData(gameid)).finally(() => {
-        setLoader(false);
-      });
-    }
-  }, [dispatch, gameid]);
-
-  // ✅ WebSocket setup - Match cricket pattern
+  // Load betting data once + subscribe for live updates (no duplicate HTTP fetch)
   useEffect(() => {
     if (!gameid) return;
+
+    let cancelled = false;
+    const hasCachedMarkets =
+      Array.isArray(battingData) && battingData.length > 0;
+    if (hasCachedMarkets) {
+      setBettingData(battingData);
+      setLoader(false);
+    } else {
+      setBettingData(null);
+      setLoader(true);
+    }
+
     wsClient.send({ type: "subscribe", gameid, apitype: "tennis" });
 
     const unsubscribe = wsClient.subscribe((message) => {
       if (
-        message?.type === "bettingData" &&
-        String(message.gameid) === String(gameid)
+        message?.type !== "bettingData" ||
+        String(message.gameid) !== String(gameid)
       ) {
-        setBettingData(message.data);
+        return;
+      }
+      const raw = message.data;
+      const markets = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.result)
+            ? raw.result
+            : [];
+      if (markets.length > 0) {
+        setBettingData(markets);
+        if (!cancelled) setLoader(false);
       }
     });
 
-    return () => unsubscribe();
-  }, [gameid]);
+    dispatch(fetchTannisBatingData(gameid)).finally(() => {
+      if (!cancelled) setLoader(false);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [dispatch, gameid]);
 
   useEffect(() => {
-    setBettingData(battingData);
+    if (Array.isArray(battingData) && battingData.length > 0) {
+      setBettingData(battingData);
+    }
   }, [battingData]);
 
   // ✅ Use socket data for all lists
@@ -508,9 +552,13 @@ function Fullmarket2() {
       try {
         if (isInitial) setScorecardLoading(true);
 
-        const response = await fetch(
-          mediaUrls.scorecardUrl
-        );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(mediaUrls.scorecardUrl, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         const json = await response.json();
 
         const iframeUrl = json?.iframe?.url;
@@ -544,99 +592,12 @@ function Fullmarket2() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [isLive, gameid]);
+  }, [isLive, gameid, mediaUrls.scorecardUrl]);
 
-  // Fetch live stream when Live is selected
   useEffect(() => {
-    if (!user) return;
-    const fetchLiveStream = async () => {
-      if (!isLive || !gameid || !match) {
-        setLiveStreamHtml(null);
-        setLiveStreamSrc(null);
-        return;
-      }
-
-      try {
-        setLiveStreamLoading(true);
-        const response = await fetch('https://sporta-api.iomhost.com:4200/spb/match-live-stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            match_id: `${gameid}`,
-            sportsName: 'tennis',
-            match_name: match,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log("Live stream API response:", result);
-        
-        if (result.status && result.data) {
-          const streamData = result.data;
-          console.log("Live stream data:", streamData);
-          console.log("Data type:", typeof streamData);
-          
-          let streamUrl = null;
-          
-          // Check if result.data is already a direct URL
-          if (typeof streamData === 'string' && (streamData.startsWith('http://') || streamData.startsWith('https://'))) {
-            // It's already a URL string - use it directly
-            streamUrl = streamData.trim();
-            console.log("✅ Direct URL detected:", streamUrl);
-          } else if (typeof streamData === 'string') {
-            // Try to extract URL from HTML iframe string (fallback)
-            const srcMatch = streamData.match(/src=["']([^"']+)["']/);
-            streamUrl = srcMatch ? srcMatch[1].trim() : null;
-            console.log("Extracted URL from HTML:", streamUrl || "No URL found");
-          }
-          
-          // Validate the URL
-          if (streamUrl && streamUrl.length > 10) {
-            const isFallbackUrl = (
-              streamUrl.includes('not-available') ||
-              streamUrl.includes('unavailable') ||
-              streamUrl.includes('error') ||
-              (streamUrl.endsWith('.html') && !streamUrl.startsWith('http'))
-            );
-            
-            if (!isFallbackUrl) {
-              // Valid streaming URL
-              console.log("✅ Setting live stream URL:", streamUrl);
-              setLiveStreamSrc(streamUrl);
-              setLiveStreamHtml(null); // Clear HTML since we're using direct URL
-            } else {
-              console.log("❌ Invalid or fallback URL detected:", streamUrl);
-              setLiveStreamSrc(null);
-              setLiveStreamHtml(null);
-            }
-          } else {
-            console.log("❌ No valid stream URL found");
-            setLiveStreamSrc(null);
-            setLiveStreamHtml(null);
-          }
-        } else {
-          console.log("❌ API response invalid:", result);
-          setLiveStreamSrc(null);
-          setLiveStreamHtml(null);
-          throw new Error(result.message || 'Failed to fetch live stream');
-        }
-      } catch (error) {
-        console.error('Error fetching live stream:', error);
-        setLiveStreamHtml(null);
-        setLiveStreamSrc(null);
-        toast.error('Failed to load live stream');
-      } finally {
-        setLiveStreamLoading(false);
-      }
-    };
-
-    fetchLiveStream();
+    setLiveStreamHtml(null);
+    setLiveStreamSrc(null);
+    setLiveStreamLoading(false);
   }, [isLive, gameid, match]);
 
   // Reset live stream when switching away from Live

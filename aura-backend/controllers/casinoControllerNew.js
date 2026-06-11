@@ -37,10 +37,6 @@ export const startCasinoGame = async (req, res) => {
     const roundedCreditAmount = Math.round(parseFloat(credit_amount) * 100) / 100;
 
     if (roundedBalance < roundedCreditAmount) {
-      console.log("subadmin balance", subAdmin.avbalance);
-      console.log("credit amount", credit_amount);
-      console.log("rounded balance", roundedBalance);
-      console.log("rounded credit amount", roundedCreditAmount);
       return res.status(400).json({ 
         success: false, 
         message: "Insufficient balance" 

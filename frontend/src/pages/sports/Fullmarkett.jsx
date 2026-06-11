@@ -742,8 +742,9 @@ function Fullmarkett() {
   const { gameid } = useParams() || {};
   const { match } = useParams() || {};
   const key =
+    import.meta.env.VITE_PROVIDER_C_API_KEY ||
     import.meta.env.VITE_BULKAPI_KEY ||
-    "gk_4b8bf40e61c7828c64e1b1f684cc4eaa6a243cef3d4c622f";
+    'gk_5db268ed77db3fe9577d7085eb75c2d23467093541ab3ac2';
   const mediaUrls = getSportsMediaUrls({
     sport: SPORTS_MEDIA_TYPE.CRICKET,
     gameid,
@@ -752,7 +753,7 @@ function Fullmarkett() {
   const hasCheckedRef = useRef(false); // ✅ run only once
   const [selected, setSelected] = useState("Fancybet");
   const[isFacncyActive, setIsFancyActive] = useState(true);
-  const [isLive, setIsLive] = useState(false);
+  const [isLive, setIsLive] = useState(true);
   const [TiedOddSelected, setTiedOddSelected] = useState("odds");
 
   const [betSlipOpen, setBetSlipOpen] = useState(false);
@@ -814,62 +815,59 @@ function Fullmarkett() {
     setBetAmount(0);
   };
 
-  // ✅ Fetch once before using socket (optional)
-  useEffect(() => {
-    if (gameid) {
-      setLoader(true);
-      dispatch(fetchCricketBatingData(gameid)).finally(() => {
-        setLoader(false);
-      });
-    }
-  }, [dispatch, gameid]);
-
+  // Load betting data once + subscribe for live updates (no duplicate HTTP fetch)
   useEffect(() => {
     if (!gameid) return;
-    // subscribe to betting updates for this game
+
+    let cancelled = false;
+    const hasCachedMarkets =
+      Array.isArray(battingData) && battingData.length > 0;
+    if (hasCachedMarkets) {
+      setBettingData(battingData);
+      setLoader(false);
+    } else {
+      setBettingData(null);
+      setLoader(true);
+    }
+
     wsClient.send({ type: "subscribe", gameid, apitype: "cricket" });
 
     const unsubscribe = wsClient.subscribe((message) => {
       if (
-        message?.type === "bettingData" &&
-        String(message.gameid) === String(gameid)
+        message?.type !== "bettingData" ||
+        String(message.gameid) !== String(gameid)
       ) {
-        setBettingData(message.data);
+        return;
+      }
+      const raw = message.data;
+      const markets = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.result)
+            ? raw.result
+            : [];
+      if (markets.length > 0) {
+        setBettingData(markets);
+        if (!cancelled) setLoader(false);
       }
     });
 
-    return () => unsubscribe();
-  }, [gameid]);
-
-    useEffect(() => {
-    let intervalId;
-
-    if (gameid) {
-      // Set loader true before initial fetch
-      setLoader(true);
-
-      const fetchData = async () => {
-        await dispatch(fetchCricketBatingData(gameid));
-        setLoader(false); // Stop loader after first successful fetch
-      };
-
-      fetchData();
-
-      // intervalId = setInterval(() => {
-      //   dispatch(fetchCricketBatingData(gameid));
-      // }, 2000);
-    }
-
+    dispatch(fetchCricketBatingData(gameid)).finally(() => {
+      if (!cancelled) setLoader(false);
+    });
 
     return () => {
-      clearInterval(intervalId);
+      cancelled = true;
+      unsubscribe();
     };
-  }, [gameid]);
+  }, [dispatch, gameid]);
 
   useEffect(() => {
-    setBettingData(battingData);
+    if (Array.isArray(battingData) && battingData.length > 0) {
+      setBettingData(battingData);
+    }
   }, [battingData]);
-console.log("betting data",bettingData)
 
   // ✅ Use socket data for all lists
   useEffect(() => {
@@ -1274,9 +1272,13 @@ const fetchScorecard = async (isInitial = false) => {
   try {
     if (isInitial) setScorecardLoading(true);
 
-    const response = await fetch(
-      mediaUrls.scorecardUrl
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(mediaUrls.scorecardUrl, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
     const json = await response.json();
 
     const iframeUrl = json?.iframe?.url;
@@ -1315,7 +1317,7 @@ const fetchScorecard = async (isInitial = false) => {
         clearInterval(intervalId);
       }
     };
-  }, [isLive, gameid]);
+  }, [isLive, gameid, mediaUrls.scorecardUrl]);
 
   // Write HTML content to iframe when it changes
   useEffect(() => {

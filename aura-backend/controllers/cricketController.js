@@ -5,6 +5,21 @@ import { fetchMatchData, fetchMatchList } from '../services/matchApi/index.js';
 
 dotenv.config();
 
+/** Cricket leagues hidden from /api/cricket/matches listing (case-insensitive cname). */
+const BLOCKED_CRICKET_CNAMES = new Set([
+  'dim cricket league (1 over)',
+  't5 xi',
+  't10 xi',
+]);
+
+const isBlockedCricketLeague = (cname) => {
+  const key = (cname || '').toString().trim().toLowerCase();
+  return BLOCKED_CRICKET_CNAMES.has(key);
+};
+
+const cricketBettingCache = new Map();
+const CRICKET_BETTING_CACHE_MS = 4000;
+
 export const getCricketData = async (req, res) => {
   try {
     const data = await fetchMatchList(4);
@@ -16,36 +31,53 @@ export const getCricketData = async (req, res) => {
 
       const transformed = allMatches
         .map((match) => {
+          const marketStatus = match.status != null ? String(match.status) : '';
+
           const team1Odds =
             match.section && match.section.length >= 1
               ? {
                   home: match.section[0].odds[0]?.odds?.toString() || '0',
                   away: match.section[0].odds[1]?.odds?.toString() || '0',
+                  gstatus:
+                    match.section[0].gstatus != null
+                      ? String(match.section[0].gstatus)
+                      : marketStatus,
                 }
-              : { home: '0', away: '0' };
+              : { home: '0', away: '0', gstatus: marketStatus };
 
           const team2Odds =
             match.section && match.section.length >= 2
               ? {
                   home: match.section[1].odds[0]?.odds?.toString() || '0',
                   away: match.section[1].odds[1]?.odds?.toString() || '0',
+                  gstatus:
+                    match.section[1].gstatus != null
+                      ? String(match.section[1].gstatus)
+                      : marketStatus,
                 }
-              : { home: '0', away: '0' };
+              : { home: '0', away: '0', gstatus: marketStatus };
 
-          const oddsArr = [team1Odds, { home: '0', away: '0' }, team2Odds];
+          const oddsArr = [
+            team1Odds,
+            { home: '0', away: '0', gstatus: marketStatus },
+            team2Odds,
+          ];
 
           return {
             id: match.beventId || match.oldgmid || match.gmid,
             beventId: match.beventId || null,
             match: match.ename,
             date: match.stime,
-            cname:match.cname,
+            cname: match.cname,
             channels: [],
             odds: oddsArr,
             inplay: match.iplay,
+            status: marketStatus,
           };
         })
         .filter((m) => {
+          if (isBlockedCricketLeague(m.cname)) return false;
+
           const matchName = (m.match || '').toString().trim().toLowerCase();
           const categoryName = (m.cname || '').toString().trim().toLowerCase();
 
@@ -70,8 +102,10 @@ export const getCricketData = async (req, res) => {
         .json({ success: false, message: 'Failed to fetch matches' });
     }
   } catch (err) {
-    console.error('Error fetching matches:', err.message);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error fetching matches:', err.message, err.stack);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error: ' + err.message });
   }
 };
 
@@ -83,9 +117,16 @@ export const fetchCrirketBettingData = async (req, res) => {
   }
 
   try {
+    const cacheKey = String(gameid);
+    const cached = cricketBettingCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < CRICKET_BETTING_CACHE_MS) {
+      return res.status(200).json({ success: true, data: cached.payload });
+    }
+
     const json = await fetchMatchData(gameid, 4);
 
     if (json.success) {
+      cricketBettingCache.set(cacheKey, { ts: Date.now(), payload: json });
       return res.status(200).json({ success: true, data: json });
     } else {
       return res

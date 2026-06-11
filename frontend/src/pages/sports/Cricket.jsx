@@ -9,7 +9,7 @@ import s from '../../assets/icon/s.png';
 import y from '../../assets/icon/youtube.png';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from "react-redux";
-import { fetchCricketData, fetchCricketInplayData } from '../../features/sports/cricketSlice';
+import { fetchCricketData } from '../../features/sports/cricketSlice';
 import useDeactivatedMatches from '../../hooks/useDeactivatedMatches';
 
 function Cricket({ activeTab }) {
@@ -17,10 +17,10 @@ function Cricket({ activeTab }) {
   const navigate = useNavigate();
   const { isMatchVisible } = useDeactivatedMatches();
 
-  const { matches, inplayMatches, loader, error } = useSelector((state) => state.cricket);
+  const { matches } = useSelector((state) => state.cricket);
   const [openIndexes, setOpenIndexes] = useState([0]);
 
-  const sourceMatches = activeTab === "InPlay" ? inplayMatches : matches;
+  const sourceMatches = matches || [];
 
   // Filter matches based on activeTab (InPlay, Today, Tomorrow)
   const filteredMatches = sourceMatches.filter(match => {
@@ -68,12 +68,6 @@ function Cricket({ activeTab }) {
   useEffect(() => {
     dispatch(fetchCricketData());
   }, [dispatch]);
-
-  useEffect(() => {
-    if (activeTab === "InPlay") {
-      dispatch(fetchCricketInplayData());
-    }
-  }, [activeTab, dispatch]);
 
   const handleClick = (match) => {
     navigate(`/sports/fullmarket/${match.match}/${match.id}`);
