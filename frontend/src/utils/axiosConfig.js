@@ -1,10 +1,12 @@
 import axios from "axios";
 
-const api = axios.create({
-   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api",
-  // baseURL: "/api",
+const isLocal = import.meta.env.VITE_IS_LOCAL !== 'false';
 
-  withCredentials: true, // important for cookies/session if backend uses them
+const api = axios.create({
+  baseURL: isLocal
+    ? (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api")
+    : "/api",
+  withCredentials: true,
 });
 
 //  Request Interceptor → Attach token
@@ -46,8 +48,6 @@ api.interceptors.response.use(
 
 export default api;
 
-export const host = "ws://localhost:3000";
-// export const host="https://ad.7billion.online"
-// export const host = "/";
+export const host = isLocal ? "ws://localhost:3000" : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 
 

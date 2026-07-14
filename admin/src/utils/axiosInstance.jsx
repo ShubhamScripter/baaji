@@ -6,12 +6,10 @@ export const setLogoutHandler = (handler) => {
   logoutHandler = handler;
 };
 
-const axiosInstance = axios.create({
-  // baseURL: 'https://cd06b49e12b2.ngrok-free.app/api',
-   baseURL: 'http://localhost:3000/api',
-  // baseURL:'https://7billion.online/api',
+const isLocal = import.meta.env.VITE_IS_LOCAL !== 'false';
 
-  // baseURL: "/api",
+const axiosInstance = axios.create({
+  baseURL: isLocal ? 'http://localhost:3000/api' : '/api',
   headers: {
     'Content-Type': 'application/json',
   },

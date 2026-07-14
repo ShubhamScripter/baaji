@@ -34,7 +34,7 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-const APP_TYPE = process.env.APP_TYPE || 'dashboard';
+const APP_TYPE = process.env.APP_TYPE || 'unified';
 
 // Middleware
 app.use(
@@ -44,9 +44,10 @@ app.use(
       'http://localhost:5174',
       'http://localhost:5175',
       'http://localhost:5176',
-      'https://diamond-admin-tau.vercel.app/',
-      'https://diamondbook-client.vercel.app/',
-      'https://aura444.org/',
+      'https://baajihub.com',
+      'https://ag.baajihub.com',
+      'http://baajihub.com',
+      'http://ag.baajihub.com',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -91,41 +92,62 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-if (APP_TYPE === 'dashboard') {
-  app.use(express.static(path.join(__dirname, '../dashboard/dist')));
+const ADMIN_PREFIX = process.env.ADMIN_SUBDOMAIN || 'ag.';
+const frontendDist = path.join(__dirname, '../frontend/dist');
+const adminDist = path.join(__dirname, '../admin/dist');
+
+const serveFrontendStatic = express.static(frontendDist);
+const serveAdminStatic = express.static(adminDist);
+
+if (APP_TYPE === 'unified') {
+  app.use((req, res, next) => {
+    const hostname = req.hostname || '';
+    if (hostname.startsWith(ADMIN_PREFIX)) {
+      serveAdminStatic(req, res, next);
+    } else {
+      serveFrontendStatic(req, res, next);
+    }
+  });
+
+  app.get('*', (req, res) => {
+    const hostname = req.hostname || '';
+    if (hostname.startsWith(ADMIN_PREFIX)) {
+      res.sendFile(path.join(adminDist, 'index.html'));
+    } else {
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    }
+  });
+} else if (APP_TYPE === 'dashboard') {
+  app.use(serveAdminStatic);
   app.get('*', (req, res) =>
-    res.sendFile(path.join(__dirname, '../dashboard/dist/index.html'))
+    res.sendFile(path.join(adminDist, 'index.html'))
   );
 } else {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+  app.use(serveFrontendStatic);
   app.get('*', (req, res) =>
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
+    res.sendFile(path.join(frontendDist, 'index.html'))
   );
 }
 
 setupWebSocket(server);
 
-// Only run settlement crons on the client backend process.
-// In production, TWO PM2 processes (agaura444 + aura444) run the same server.js.
-// If both run crons, bets get settled twice → bettingProfitLoss doubles.
+// Settlement crons run in unified mode and in frontend-only mode
 if (APP_TYPE !== 'dashboard') {
   cronJobGame1p();
-  console.log('[CRON] Settlement crons started (client process)');
+  console.log('[CRON] Settlement crons started');
 } else {
-  console.log('[CRON] Settlement crons SKIPPED (dashboard process)');
+  console.log('[CRON] Settlement crons SKIPPED (dashboard-only process)');
 }
 
 const isLocal = process.env.NODE_ENV !== 'production';
 
 const PORT = isLocal
-  ? process.env.PORT || (APP_TYPE === 'dashboard' ? 8001 : 8000)
-  : APP_TYPE === 'dashboard'
-    ? process.env.DASHBOARD_PORT
-    : process.env.CLIENT_PORT;
+  ? process.env.PORT || 3000
+  : process.env.PORT || 8000;
 
 server.listen(PORT, () => {
   console.log(
-    `${APP_TYPE} server running on port ${PORT} (${isLocal ? 'local' : 'prod'})`
+    `[${APP_TYPE.toUpperCase()}] Server running on port ${PORT} (${isLocal ? 'local' : 'prod'})`
   );
 });
 
