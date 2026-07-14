@@ -20,14 +20,12 @@ git clean -fd
 # Rebuild frontend
 echo "Building frontend..."
 cd frontend
-echo "VITE_IS_LOCAL=false" > .env
 npm install --legacy-peer-deps
 npm run build
 
 # Rebuild admin
 echo "Building admin..."
 cd ../admin
-echo "VITE_IS_LOCAL=false" > .env
 npm install --legacy-peer-deps
 npm run build
 

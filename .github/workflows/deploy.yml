@@ -81,12 +81,10 @@ jobs:
 
             # Build frontend
             cd frontend
-            echo "VITE_IS_LOCAL=false" > .env
             npm install --legacy-peer-deps && npm run build
 
             # Build admin
             cd ../admin
-            echo "VITE_IS_LOCAL=false" > .env
             npm install --legacy-peer-deps && npm run build
 
             # Update backend & restart single process

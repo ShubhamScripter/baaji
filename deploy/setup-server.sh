@@ -11,7 +11,7 @@ APP_DIR="/www/wwwroot/baajihub"
 REPO_URL="https://github.com/YOUR_USERNAME/baaji.git"  # <-- apna repo URL daalein
 BRANCH="main"
 PM2_NAME="baajihub"
-NODE_PORT=8000
+NODE_PORT=3000
 
 echo "=============================="
 echo " BaajiHub Server Setup"
@@ -54,37 +54,24 @@ npm install --legacy-peer-deps
 # 4. Build frontend
 echo "[4/8] Building frontend..."
 cd ../frontend
-echo "VITE_IS_LOCAL=false" > .env
 npm install --legacy-peer-deps
 npm run build
 
 # 5. Build admin
 echo "[5/8] Building admin panel..."
 cd ../admin
-echo "VITE_IS_LOCAL=false" > .env
 npm install --legacy-peer-deps
 npm run build
 
-# 6. Setup .env for backend (only if not exists)
+# 6. Check backend .env exists
 echo "[6/8] Checking backend .env..."
 cd ../aura-backend
 if [ ! -f .env ]; then
     echo "ERROR: .env file not found in aura-backend/"
-    echo "Please create .env with your configuration before running this script."
+    echo "Please copy your .env file here before running this script."
     exit 1
 fi
-
-# Ensure production settings in .env
-if ! grep -q "NODE_ENV=production" .env; then
-    echo "" >> .env
-    echo "NODE_ENV=production" >> .env
-fi
-if ! grep -q "APP_TYPE=unified" .env; then
-    echo "APP_TYPE=unified" >> .env
-fi
-if ! grep -q "^PORT=" .env; then
-    echo "PORT=$NODE_PORT" >> .env
-fi
+echo ".env found - no changes needed"
 
 # 7. Setup Nginx
 echo "[7/8] Configuring Nginx..."

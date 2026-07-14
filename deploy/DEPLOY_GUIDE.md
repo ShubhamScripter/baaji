@@ -113,14 +113,13 @@ Ya GitHub Actions se automatic deploy hoga (push to `main`).
 
 ## Env Changes Required?
 
-**LOCAL DEV: KUCHH CHANGE NAHI** - Same `.env` se kaam karega
+**KUCHH BHI CHANGE NAHI!**
 
-**SERVER: Sirf 3 lines** (one-time during setup):
-```
-NODE_ENV=production
-APP_TYPE=unified
-PORT=8000
-```
+- **Local dev:** `localhost` detect hota hai → `http://localhost:3000/api` use hota hai
+- **Production:** domain detect hota hai → `/api` (same-origin) use hota hai
+- **Backend:** automatically detect karta hai ki `frontend/dist` aur `admin/dist` dono exist karte hain → unified mode
+- `.env` bilkul same rahega local aur server dono pe
+- Server pe sirf `PORT=8000` add hota hai (setup script automatically karta hai) for Nginx
 
 ---
 
