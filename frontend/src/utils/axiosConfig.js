@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const isLocal = import.meta.env.VITE_IS_LOCAL !== 'false';
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const api = axios.create({
   baseURL: isLocal
@@ -48,6 +48,8 @@ api.interceptors.response.use(
 
 export default api;
 
-export const host = isLocal ? "ws://localhost:3000" : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+export const host = isLocal
+  ? "ws://localhost:3000"
+  : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 
 

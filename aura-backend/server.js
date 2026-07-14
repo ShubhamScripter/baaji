@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import fs from 'fs';
 import http from 'http';
 import morgan from 'morgan';
 import path from 'path';
@@ -34,7 +35,20 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-const APP_TYPE = process.env.APP_TYPE || 'unified';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const frontendDistExists = fs.existsSync(path.join(__dirname, '../frontend/dist/index.html'));
+const adminDistExists = fs.existsSync(path.join(__dirname, '../admin/dist/index.html'));
+
+let APP_TYPE;
+if (frontendDistExists && adminDistExists) {
+  APP_TYPE = 'unified';
+} else if (adminDistExists) {
+  APP_TYPE = 'dashboard';
+} else {
+  APP_TYPE = 'frontend';
+}
 
 // Middleware
 app.use(
@@ -88,8 +102,6 @@ app.use('/api', cashoutRoute);
 app.use('/api', manualDepositRoutes);
 app.use("/api/casino", casinoRoutesNew);
 // Static file serving
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const ADMIN_PREFIX = process.env.ADMIN_SUBDOMAIN || 'ag.';
@@ -139,16 +151,14 @@ if (APP_TYPE !== 'dashboard') {
   console.log('[CRON] Settlement crons SKIPPED (dashboard-only process)');
 }
 
-const isLocal = process.env.NODE_ENV !== 'production';
-
-const PORT = isLocal
-  ? process.env.PORT || 3000
-  : process.env.PORT || 8000;
+const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  console.log(
-    `[${APP_TYPE.toUpperCase()}] Server running on port ${PORT} (${isLocal ? 'local' : 'prod'})`
-  );
+  console.log(`[${APP_TYPE.toUpperCase()}] Server running on port ${PORT}`);
+  if (APP_TYPE === 'unified') {
+    console.log(`  Frontend: served on default hostname`);
+    console.log(`  Admin:    served on ag.* subdomain`);
+  }
 });
 
 

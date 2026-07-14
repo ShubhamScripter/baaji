@@ -6,7 +6,7 @@ export const setLogoutHandler = (handler) => {
   logoutHandler = handler;
 };
 
-const isLocal = import.meta.env.VITE_IS_LOCAL !== 'false';
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const axiosInstance = axios.create({
   baseURL: isLocal ? 'http://localhost:3000/api' : '/api',
