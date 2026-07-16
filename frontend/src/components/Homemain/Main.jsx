@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IoAlarmSharp } from "react-icons/io5";
 import { FaCalendar, FaCalendarAlt } from "react-icons/fa";
 import { HiTrophy } from "react-icons/hi2";
+import { MdSportsScore } from "react-icons/md";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchCricketData } from "../../features/sports/cricketSlice";
 import { fetchSoccerData } from "../../features/sports/soccerSlice";
@@ -40,6 +41,7 @@ const filterMatches = (matches, filterType) => {
 };
 
 const categories = [
+  { name: "All", icon: <MdSportsScore size={35} /> },
   { name: "In Play", icon: <IoAlarmSharp size={35} /> },
   { name: "Today", icon: <FaCalendar size={35} /> },
   { name: "Tomorrow", icon: <FaCalendarAlt size={35} /> },
@@ -90,7 +92,7 @@ function Main() {
   // const soccer = []
   // const tennis = []
 
-  const [Filter, setFilter] = useState("In Play");
+  const [Filter, setFilter] = useState("All");
 
   useEffect(() => {
     dispatch(fetchCricketData());
@@ -162,14 +164,16 @@ function Main() {
   const allInplaySports = [...visibleCricketInplay, ...visibleSoccerInplay, ...visibleTennisInplay];
 
   const filteredData = {
-    all: Filter === "In Play" ? allInplaySports : filterMatches(allSports, Filter),
-    cricket: Filter === "In Play" ? visibleCricketInplay : filterMatches(visibleCricket, Filter),
-    soccer: Filter === "In Play" ? visibleSoccerInplay : filterMatches(visibleSoccer, Filter),
-    tennis: Filter === "In Play" ? visibleTennisInplay : filterMatches(visibleTennis, Filter),
+    all: Filter === "In Play" ? allInplaySports : Filter === "All" ? allSports : filterMatches(allSports, Filter),
+    cricket: Filter === "In Play" ? visibleCricketInplay : Filter === "All" ? visibleCricket : filterMatches(visibleCricket, Filter),
+    soccer: Filter === "In Play" ? visibleSoccerInplay : Filter === "All" ? visibleSoccer : filterMatches(visibleSoccer, Filter),
+    tennis: Filter === "In Play" ? visibleTennisInplay : Filter === "All" ? visibleTennis : filterMatches(visibleTennis, Filter),
   };
 
   let content;
-  if (Filter === "In Play") {
+  if (Filter === "All") {
+    content = <Today data={filteredData} enabledSports={enabledSports} />;
+  } else if (Filter === "In Play") {
     content = <Inplay data={filteredData} enabledSports={enabledSports} />;
   } else if (Filter === "Today") {
     content = <Today data={filteredData} enabledSports={enabledSports} />;
