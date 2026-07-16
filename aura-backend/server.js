@@ -51,18 +51,28 @@ if (frontendDistExists && adminDistExists) {
 }
 
 // Middleware
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'https://diamond-admin-tau.vercel.app/',
+  'https://diamondbook-client.vercel.app/',
+  'https://aura444.org/',
+];
+
+// Allow any LAN/private IP on any port (for local dev via network IP e.g. 172.19.x.x:5173)
+const localNetworkOrigin =
+  /^https?:\/\/(localhost|127\.0\.0\.1|(10|127)\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://localhost:5176',
-      'https://baajihub.com',
-      'https://ag.baajihub.com',
-      'http://baajihub.com',
-      'http://ag.baajihub.com',
-    ],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || localNetworkOrigin.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],

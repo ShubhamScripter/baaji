@@ -1,10 +1,13 @@
 import axios from "axios";
 
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const { hostname, protocol } = window.location;
+
+// isDev = Vite dev server is running (works for localhost AND LAN IPs like 172.x.x.x)
+const isDev = import.meta.env.DEV;
 
 const api = axios.create({
-  baseURL: isLocal
-    ? (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api")
+  baseURL: isDev
+    ? (import.meta.env.VITE_API_BASE_URL || `${protocol}//${hostname}:4000/api`)
     : "/api",
   withCredentials: true,
 });
@@ -48,8 +51,8 @@ api.interceptors.response.use(
 
 export default api;
 
-export const host = isLocal
-  ? "ws://localhost:3000"
-  : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+export const host = isDev
+  ? `${protocol === 'https:' ? 'wss:' : 'ws:'}//${hostname}:4000`
+  : `${protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
 
 
