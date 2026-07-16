@@ -59,6 +59,12 @@ const allowedOrigins = [
   'https://diamond-admin-tau.vercel.app/',
   'https://diamondbook-client.vercel.app/',
   'https://aura444.org/',
+  'http://baajihub.com',
+  'https://baajihub.com',
+  'http://ag.baajihub.com',
+  'https://ag.baajihub.com',
+  'http://www.baajihub.com',
+  'https://www.baajihub.com',
 ];
 
 // Allow any LAN/private IP on any port (for local dev via network IP e.g. 172.19.x.x:5173)
