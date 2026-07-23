@@ -65,7 +65,11 @@ const subAdminSchema = new mongoose.Schema(
     },
     sessionToken: { type: String, default: null },
     lastLogin: { type: Date, default: null },
-    lastDevice: { type: String, default: null },
+    lastActive: { type: Date, default: null },
+    lastDevice: { type: String, default: null }, // raw user-agent string
+    // Stable device fingerprint used by multi-account detection. Distinct from
+    // lastDevice because the user-agent alone is not identifying.
+    lastDeviceId: { type: String, default: null },
     lastIP: { type: String, default: null },
     quickStakes: {
       type: [Number],
@@ -81,6 +85,9 @@ const subAdminSchema = new mongoose.Schema(
 
 // Index on name for query performance (not unique - duplicate names are allowed)
 subAdminSchema.index({ name: 1 });
+
+// Supports the online-user counts, which filter by role + recent lastActive
+subAdminSchema.index({ role: 1, lastActive: -1 });
 
 // Hash password before saving
 subAdminSchema.pre('save', async function (next) {

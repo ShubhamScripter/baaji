@@ -141,6 +141,13 @@ import { getBetHistory } from '../../features/sports/betReducer';
 import { MdArrowBackIos } from "react-icons/md";
 import HeaderLogin from '../../components/Header/HeaderLogin'
 import BetCard from '../../components/Bethistory/BetCard';
+import BetTypeFilter from '../../components/Bethistory/BetTypeFilter';
+import {
+  MARKET_OPTIONS,
+  buildSportOptions,
+  getBetMarket,
+  getBetSport,
+} from '../../utils/betCategories';
 
 // Remove the hardcoded allBetData array
 
@@ -149,58 +156,20 @@ function CurrentBets() {
   const { betHistory, loading, successMessage } = useSelector(
     (state) => state.bet
   );
-  const [selectedStatus, setSelectedStatus] = useState('Completed');
-  const currentDate = new Date();
-  const oneMonthAgo = new Date();
-  oneMonthAgo.setMonth(currentDate.getMonth() - 1);
-  const formatDate = (date) => date.toISOString().split("T")[0];
-  const [startDate, setStartDate] = useState(formatDate(oneMonthAgo));
-  const [endDate, setEndDate] = useState(formatDate(currentDate));
   const [page, setPage] = useState(1);
-  const [selectedOption, setSelectedOption] = useState("LIVE DATA");
-  const [selectedGame, setSelectedGame] = useState("");
-  const [selectedBetType, setSelectedBetType] = useState("Exchange");
-  const [selectedVoid, setSelectedVoid] = useState("unsettle");
-  const [pages, setPages] = useState(10);
+  // { sports: [...keys], markets: [...keys] } — empty array means "no restriction"
+  const [betTypeFilter, setBetTypeFilter] = useState({ sports: [], markets: [] });
+  const [pages, setPages] = useState(100);
 
-  useEffect(() => {
-    const currentDate = new Date();
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(currentDate.getDate() - 1);
-
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(currentDate.getMonth() - 1);
-    const fiveMonthAgo = new Date();
-    fiveMonthAgo.setMonth(currentDate.getMonth() - 12);
-
-    if (selectedOption === "LIVE DATA") {
-      setStartDate(formatDate(currentDate));
-      setEndDate(formatDate(currentDate));
-    } else if (selectedOption === "BACKUP DATA") {
-      setStartDate(formatDate(oneMonthAgo));
-      setEndDate(formatDate(twoDaysAgo));
-    } else if (selectedOption === "OLD DATA") {
-      setStartDate(formatDate(fiveMonthAgo));
-      setEndDate(formatDate(currentDate));
-    }
-  }, [selectedOption]);
-
-  const handleOptionChange = (event) => {
-    setSelectedOption(event.target.value);
-  };
-
+  // No date filter here: current bets are the open (unsettled) ones, so the
+  // request is sent without a range and the API returns them all.
   const fetchBets = () => {
-    if (!startDate || !endDate) return;
-    dispatch(getBetHistory({ startDate, endDate, page, selectedGame, selectedVoid, limit: pages }));
+    dispatch(getBetHistory({ page, limit: pages }));
   };
 
   useEffect(() => {
-    if (startDate && endDate) fetchBets();
-  }, [page, startDate, endDate, selectedGame, selectedVoid, pages]);
-
-  useEffect(() => {
-    if (pages) fetchBets();
-  }, [pages]);
+    fetchBets();
+  }, [page, pages]);
 
   // Helper function to determine status based on void and settled fields
   const getStatusFromVoid = (voidStatus, settled) => {
@@ -218,8 +187,12 @@ function CurrentBets() {
       const expectedProfit = Number(bet.betAmount ?? 0);
       const expectedLoss = Number(bet.price ?? 0);
       const actualNet = Number(bet.profitLossChange ?? bet.resultAmount ?? 0);
+      const sport = getBetSport(bet);
       return {
       id: bet._id || bet.id || `bet-${idx}`,
+      sportKey: sport.key,
+      sportLabel: sport.label,
+      marketKey: getBetMarket(bet),
       plId: bet.userName || "user",
       betId: bet.betId || bet._id || `bet-${idx}`,
       ipAddress: bet.ip || "-",
@@ -249,16 +222,44 @@ function CurrentBets() {
     }});
   }, [betHistory]);
 
-  const filterTabs = ["Exchange", "Bookmaker", "FancyBet"];
-  const selectedGameByTab = {
-    Exchange: "exchange",
-    Bookmaker: "bookmaker",
-    FancyBet: "fancybet",
-  };
+  // Filter rows (sports + casino, and market types) with a live count of how
+  // many of the fetched bets fall into each one.
+  const filterGroups = useMemo(() => {
+    const countBy = (key, value) =>
+      mappedBetData.filter((bet) => bet[key] === value).length;
 
-  useEffect(() => {
-    setSelectedGame(selectedGameByTab[selectedBetType] || "");
-  }, [selectedBetType]);
+    return [
+      {
+        id: "sports",
+        label: "Sports & Casino",
+        options: buildSportOptions(betHistory).map((option) => ({
+          ...option,
+          count: countBy("sportKey", option.key),
+        })),
+      },
+      {
+        id: "markets",
+        label: "Markets",
+        options: MARKET_OPTIONS.map((option) => ({
+          ...option,
+          count: countBy("marketKey", option.key),
+        })),
+      },
+    ];
+  }, [mappedBetData, betHistory]);
+
+  // A bet must match the selected sports AND the selected markets; an empty
+  // selection for a group means that group is not filtering anything.
+  const filteredBetData = useMemo(() => {
+    const { sports = [], markets = [] } = betTypeFilter;
+    if (sports.length === 0 && markets.length === 0) return mappedBetData;
+
+    return mappedBetData.filter((bet) => {
+      const sportOk = sports.length === 0 || sports.includes(bet.sportKey);
+      const marketOk = markets.length === 0 || markets.includes(bet.marketKey);
+      return sportOk && marketOk;
+    });
+  }, [mappedBetData, betTypeFilter]);
 
   return (
     <div>
@@ -269,37 +270,14 @@ function CurrentBets() {
         </div>
         <span className="text-white text-sm  md:text-lg font-semibold absolute -translate-x-1/2 left-1/2">Current Bets</span>
       </div>
-      <div className='bg-[#eef6fb] h-15 flex items-center justify-around gap-2 px-2'>
-        {filterTabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setSelectedBetType(tab)}
-            className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-              selectedBetType === tab
-                ? "bg-[#243a48] text-white"
-                : "text-[#243a48] bg-transparent"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <BetTypeFilter
+        groups={filterGroups}
+        selected={betTypeFilter}
+        onApply={setBetTypeFilter}
+        totalCount={mappedBetData.length}
+      />
       <div className='bg-[#262c32] p-4'>
-        {/* Bet Status Dropdown */}
-        <div className='flex items-center justify-between relative'>
-          <select
-            name="Bet Status"
-            className='bg-[#1b1f23] text-white pl-20 py-2 rounded-lg w-full'
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-          >
-            <option value="Completed">Matched</option>
-            <option value="Cancelled">UnMatched</option>
-          </select>
-          <span className='absolute left-0 text-white pl-2'>Bet Status</span>
-        </div>
-        <div className='flex items-center mt-4 justify-end gap-5'>
+        <div className='flex items-center justify-end gap-5'>
           <span className='text-xl font-bold text-[#17934e]'>Order By</span>
           <div className='flex items-center gap-2 text-white'>
             <input type="checkbox" name="BetPlaced" id="betPlaced" />
@@ -318,7 +296,7 @@ function CurrentBets() {
             <div className="text-lg font-semibold text-gray-600">Loading current bets...</div>
           </div>
         ) : (
-          <BetCard data={mappedBetData} />
+          <BetCard data={filteredBetData} />
         )}
       </div>
     </div>

@@ -91,6 +91,19 @@ console.log("message is:", message);
 
 
 import CasinoBetHistory from '../models/casinoBetHistory.model.js';
+import { CASINO_NET_PL_EXPR, getCasinoRoundNet } from '../utils/casinoPL.js';
+
+// Rolls a casino round's P/L up the hierarchy so the downline list totals
+// (bettingProfitLoss / totalBalance) include casino, the same way bet
+// settlement does. Deliberately not awaited: the provider callback has to
+// return quickly, and walking the upline chain can be slow on a deep tree.
+const refreshUplineProfitLoss = (userId) => {
+  import('./admin/subAdminController.js')
+    .then(({ updateAllUplines }) => updateAllUplines(userId))
+    .catch((error) =>
+      console.error('❌ Casino upline P/L refresh failed:', error.message)
+    );
+};
 
 
 // export const casinoCallback = async (req, res) => {
@@ -461,6 +474,7 @@ export const casinoCallback = async (req, res) => {
         newBalance: updatedUser.avbalance,
       });
       sendUserRefresh(updatedUser._id.toString());
+      refreshUplineProfitLoss(updatedUser._id.toString());
 
       console.log(`✅ BET stored | ${mobile} | Bet: ${bet}`);
     }
@@ -515,6 +529,7 @@ export const casinoCallback = async (req, res) => {
         newBalance: updatedUser.avbalance,
       });
       sendUserRefresh(updatedUser._id.toString());
+      refreshUplineProfitLoss(updatedUser._id.toString());
 
       console.log(`🏆 WIN stored | ${mobile} | Win: ${win}`);
     }
@@ -864,7 +879,12 @@ export const getAllDownlineCasinoBetHistory = async (req, res) => {
       success: true,
       totalUsers: userIds.length,
       totalBets: betData.length,
-      data: betData,
+      // `net` is the round's real profit/loss; `change` is kept as-is for
+      // backwards compatibility but must not be used as P/L.
+      data: betData.map((round) => ({
+        ...round,
+        net: getCasinoRoundNet(round),
+      })),
       pagination: {
         total: totalCount,
         page: pageNum,
@@ -978,7 +998,10 @@ export const getAllCasinoProfitLoss = async (req, res) => {
           $group: {
             _id: null,
             totalStake: { $sum: "$bet_amount" },
-            totalChange: { $sum: "$change" }
+            // Net P/L for a round is win - bet. `change` cannot be summed here:
+            // the win callback overwrites it with the win amount, so summing it
+            // over-reports every winning round by its stake.
+            totalChange: { $sum: CASINO_NET_PL_EXPR }
           }
         }
       ]);
@@ -1142,14 +1165,15 @@ export const getCasinoProfitLossByDate = async (req, res) => {
                 }
               },
               bet_amount: 1,
-              change: 1
+              // Net P/L for a round is win - bet; see CASINO_NET_PL_EXPR.
+              net: CASINO_NET_PL_EXPR
             }
           },
           {
             $group: {
               _id: "$date",
               stake: { $sum: "$bet_amount" },
-              casinoPL: { $sum: "$change" }
+              casinoPL: { $sum: "$net" }
             }
           },
           {

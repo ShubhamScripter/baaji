@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { IoClose } from "react-icons/io5";
 import {
   RiExchangeDollarFill, RiWhatsappFill, RiWallet3Fill, RiFileList3Fill, RiHandCoinFill,
-  RiHistoryFill, RiBarChart2Fill, RiEyeLine, RiUser3Fill, RiTeamFill,
+  RiHistoryFill, RiEyeLine, RiUser3Fill, RiTeamFill,
   RiListCheck3, RiSettings3Fill, RiLogoutBoxRFill, RiBankCardFill
 } from 'react-icons/ri';
 import { HiOutlineChevronRight } from "react-icons/hi";
@@ -28,7 +28,6 @@ function Navbar({ onClose, open }) {
     { label: "Account Statement", icon: <RiFileList3Fill />, path: "/user/account-statement" },
     { label: "Current Bets", icon: <RiHandCoinFill />, path: "/user/current-bets", badge: currentBetCount },
     { label: "Bets History", icon: <RiHistoryFill />, path: "/user/bet-history" },
-    { label: "Profit & Loss", icon: <RiBarChart2Fill />, path: "/user/profit-loss" },
     { label: "Active Log", icon: <RiEyeLine />, path: "/user/active-log" },
     { label: "My Profile", icon: <RiUser3Fill />, path: "/user/profile" },
     // { label: "Self Deposit / Withdraw", icon: <RiBankCardFill />, path: "/user/manual-deposit" },

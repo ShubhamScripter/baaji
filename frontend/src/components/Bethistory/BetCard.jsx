@@ -54,6 +54,11 @@ const BetCard = ({ data }) => {
         )}
       {data.map((bet, index) => {
         const plMeta = getProfitLossMeta(bet);
+        // Category heading: casino bets are labelled "Casino"; sports bets show
+        // their actual sport (gameName). Previously this was hardcoded to
+        // "Soccer", so casino/cricket/tennis bets all appeared under "Soccer".
+        const sportLabel =
+          bet.betKind === "casino" ? "Casino" : formatValue(bet.gameName);
         return (
         <div
           key={bet.id}
@@ -64,11 +69,11 @@ const BetCard = ({ data }) => {
               <tr>
                 <th colSpan={3} className="p-2">
                   <div className="flex gap-1 items-center">
-                    <span className="md:text-lg font-normal">Soccer</span>
+                    <span className="md:text-lg font-normal">{sportLabel}</span>
                     <MdPlayArrow className="text-2xl" />
-                    <span className="font-semibold md:text-lg">{bet.match}</span>
+                    <span className="font-semibold md:text-lg">{formatValue(bet.eventName ?? bet.match, "")}</span>
                     <MdPlayArrow className="text-2xl" />
-                    <span className="font-semibold md:text-lg">{bet.market}</span>
+                    <span className="font-semibold md:text-lg">{formatValue(bet.marketName ?? bet.market, "")}</span>
                   </div>
                 </th>
               </tr>

@@ -1,6 +1,11 @@
 import betHistoryModel from '../../models/betHistoryModel.js';
 import betModel from '../../models/betModel.js';
+import CasinoBetHistory from '../../models/casinoBetHistory.model.js';
 import SubAdmin from '../../models/subAdminModel.js'; // Ensure SubAdmin model is imported
+import {
+  CASINO_NET_PL_EXPR,
+  fetchCasinoRoundsAsBets,
+} from '../../utils/casinoPL.js';
 import {
   getDateRangeUTC,
   getDateRangeUTCWithOr,
@@ -274,11 +279,15 @@ export const getMyReportByEvents = async (req, res) => {
 
     // 7. Retrieve bets - Use betHistoryModel when userName is provided
     let bets;
+    // Users whose casino rounds belong in this report (narrowed to the target
+    // user when the report is drilled down to one).
+    let casinoUserIds = downlineIdStrings;
     if (betHistoryMode || betHistoryIndividualMode) {
       //  Use betHistoryModel for bet history (individual bet records)
       const targetUser = await SubAdmin.findOne({ userName: trimmedUserName });
 
       if (targetUser) {
+        casinoUserIds = [targetUser._id.toString()];
         // Query by BOTH userId and userName to handle different storage formats
         const betHistoryQuery = {
           $or: [
@@ -389,6 +398,7 @@ export const getMyReportByEvents = async (req, res) => {
         }
       } else {
         bets = [];
+        casinoUserIds = [];
         console.warn(`⚠️ User not found: ${trimmedUserName}`);
       }
     } else {
@@ -399,6 +409,25 @@ export const getMyReportByEvents = async (req, res) => {
         .find(betQuery)
         .sort({ createdAt: -1 })
         .lean();
+    }
+
+    // Third-party casino rounds are stored in CasinoBetHistory, so they have to
+    // be merged in or the report shows sports P/L only.
+    const casinoBets = await fetchCasinoRoundsAsBets({
+      userIds: casinoUserIds,
+      startDate,
+      endDate,
+      gameName: trimmedGameName,
+      eventName: trimmedEventName,
+      marketName: trimmedMarketName,
+      userName: trimmedUserName,
+    });
+
+    if (casinoBets.length) {
+      bets = [...bets, ...casinoBets].sort(
+        (a, b) =>
+          new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)
+      );
     }
 
     //Also we have to find the latest Result and market Id of the bets we can find it by us only we have to fetch the latest betHistory record then there we can fetch market Id and result
@@ -700,14 +729,32 @@ export const getMyReportByEventsGrouped = async (req, res) => {
     if (trimmedMarketName) betQuery.marketName = trimmedMarketName;
     if (trimmedUserName) betQuery.userName = trimmedUserName;
 
-    const bets = await betHistoryModel.find(betQuery).sort({ createdAt: -1 }).lean();
+    const sportsBets = await betHistoryModel.find(betQuery).sort({ createdAt: -1 }).lean();
 
-    console.log("my bet is:", bets)
+    // Third-party casino rounds live in CasinoBetHistory and would otherwise be
+    // missing from this report entirely.
+    const casinoBets = await fetchCasinoRoundsAsBets({
+      userIds: downlineIds,
+      startDate,
+      endDate,
+      gameName: trimmedGameName,
+      eventName: trimmedEventName,
+      marketName: trimmedMarketName,
+      userName: trimmedUserName,
+    });
+
+    const bets = [...sportsBets, ...casinoBets].sort(
+      (a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)
+    );
 
     const getSectionLabel = (bet) => {
       const gameType = String(bet?.gameType || '').trim().toLowerCase();
       const marketName = String(bet?.marketName || '').trim().toLowerCase();
       const fancyTypes = ['normal', 'meter', 'line', 'ball', 'khado', 'fancy'];
+
+      // Casino rounds get their own section rather than being lumped in with
+      // the sports markets.
+      if (gameType === 'casino') return 'Casino';
 
       // Exact sports split required by UI
       if (gameType === 'match odds') return 'Match Odds';
@@ -760,7 +807,12 @@ export const getMyReportByEventsGrouped = async (req, res) => {
       if (!eventMap[eventKey]._children[sectionLabel]) {
         eventMap[eventKey]._children[sectionLabel] = {
           label: sectionLabel,
-          gameType: sectionLabel === 'Match Odds' ? 'Match Odds' : 'Normal',
+          gameType:
+            sectionLabel === 'Match Odds'
+              ? 'Match Odds'
+              : sectionLabel === 'Casino'
+              ? 'Casino'
+              : 'Normal',
           marketName: bet.marketName,
           downlineWinAmount: 0,
           downlineLossAmount: 0,
@@ -1202,13 +1254,54 @@ export const getMyReportByDownline = async (req, res) => {
 
     // console.log("userProfitAggregation", userProfitAggregation)
 
+    // Casino rounds are kept in their own collection, so their P/L has to be
+    // aggregated separately and folded into the same per-user totals.
+    const casinoProfitAggregation =
+      gameName && !/casino/i.test(gameName)
+        ? []
+        : await CasinoBetHistory.aggregate([
+            {
+              $match: {
+                userId: { $in: downlineIds },
+                ...(startDate && endDate
+                  ? { createdAt: getDateRangeUTC(startDate, endDate) }
+                  : {}),
+                ...(userName ? { userName } : {}),
+              },
+            },
+            {
+              $group: {
+                _id: '$userId',
+                totalWin: {
+                  $sum: {
+                    $cond: [{ $gt: [CASINO_NET_PL_EXPR, 0] }, CASINO_NET_PL_EXPR, 0],
+                  },
+                },
+                totalLoss: {
+                  $sum: {
+                    $cond: [
+                      { $lt: [CASINO_NET_PL_EXPR, 0] },
+                      { $abs: CASINO_NET_PL_EXPR },
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+          ]);
+
     // Create map for quick lookup
     const profitMap = new Map();
-    userProfitAggregation.forEach((entry) => {
-      profitMap.set(entry._id.toString(), {
-        totalWin: entry.totalWin,
-        totalLoss: entry.totalLoss,
-        netProfit: entry.totalWin - entry.totalLoss,
+    [...userProfitAggregation, ...casinoProfitAggregation].forEach((entry) => {
+      const key = entry._id.toString();
+      const existing = profitMap.get(key) || { totalWin: 0, totalLoss: 0 };
+      const totalWin = existing.totalWin + entry.totalWin;
+      const totalLoss = existing.totalLoss + entry.totalLoss;
+
+      profitMap.set(key, {
+        totalWin,
+        totalLoss,
+        netProfit: totalWin - totalLoss,
       });
     });
 
@@ -1296,10 +1389,25 @@ export const getMyReportByDownline = async (req, res) => {
     });
 
     // 6. Get ALL bets for aggregation (no pagination yet)
-    const bets = await betHistoryModel
+    const sportsBets = await betHistoryModel
       .find(betQuery)
       .sort({ createdAt: -1 })
       .lean();
+
+    // Merge in casino rounds so the grouped views below include them too.
+    const casinoBets = await fetchCasinoRoundsAsBets({
+      userIds: downlineIds,
+      startDate,
+      endDate,
+      gameName,
+      eventName,
+      marketName,
+      userName,
+    });
+
+    const bets = [...sportsBets, ...casinoBets].sort(
+      (a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)
+    );
 
     // 7. Handle different report types
     const fullFilterMode = [gameName, eventName, marketName, userName].every(

@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-const toNumber = (value) => parseFloat(value.toString().replace(/,/g, "") || 0);
-const getAmountClass = (value) =>
-  toNumber(value) >= 0 ? "text-green-600" : "text-red-600";
+import {
+  formatAmount,
+  getAmountClass,
+  toAmount as toNumber,
+} from "../../../utils/formatAmount";
 
 const ProfitLossTable = ({matchesData}) => {
   const navigate = useNavigate();
@@ -54,13 +56,13 @@ const ProfitLossTable = ({matchesData}) => {
                   >
                     {expandedRows[match.id] ? "−" : "+"}
                   </span>
-                  Odds ▸ {match.title}
+                  {match.gameName === "Casino" ? "Casino" : "Odds"} ▸ {match.title}
                 </td>
-                <td className="p-2">{match.stake}</td>
-                <td className={`p-2 ${getAmountClass(match.downline)}`}>{match.downline}</td>
-                <td className={`p-2 ${getAmountClass(match.player)}`}>{match.player}</td>
-                <td className="p-2">{match.comm}</td>
-                <td className={`p-2 ${getAmountClass(match.upline)}`}>{match.upline}</td>
+                <td className="p-2">{formatAmount(match.stake)}</td>
+                <td className={`p-2 ${getAmountClass(match.downline)}`}>{formatAmount(match.downline)}</td>
+                <td className={`p-2 ${getAmountClass(match.player)}`}>{formatAmount(match.player)}</td>
+                <td className="p-2">{formatAmount(match.comm)}</td>
+                <td className={`p-2 ${getAmountClass(match.upline)}`}>{formatAmount(match.upline)}</td>
                 <td className="p-2"></td>
               </tr>
 
@@ -72,11 +74,11 @@ const ProfitLossTable = ({matchesData}) => {
                     <React.Fragment key={`${match.id}-${i}`}>
                       <tr className="bg-[#f2f2f2] text-gray-700 border-t">
                         <td className="p-2 pl-10">{child.label}</td>
-                        <td className="p-2">{child.stake}</td>
-                        <td className={`p-2 ${getAmountClass(child.downline)}`}>{child.downline}</td>
-                        <td className={`p-2 ${getAmountClass(child.player)}`}>{child.player}</td>
-                        <td className="p-2">{child.comm}</td>
-                        <td className={`p-2 ${getAmountClass(child.upline)}`}>{child.upline}</td>
+                        <td className="p-2">{formatAmount(child.stake)}</td>
+                        <td className={`p-2 ${getAmountClass(child.downline)}`}>{formatAmount(child.downline)}</td>
+                        <td className={`p-2 ${getAmountClass(child.player)}`}>{formatAmount(child.player)}</td>
+                        <td className="p-2">{formatAmount(child.comm)}</td>
+                        <td className={`p-2 ${getAmountClass(child.upline)}`}>{formatAmount(child.upline)}</td>
                         <td className="p-2">
                           <button
                             className={`px-2 py-1 rounded font-[700] text-xs ${
@@ -121,11 +123,11 @@ const ProfitLossTable = ({matchesData}) => {
           ):(
             <tr className="bg-[#e4e4e4] font-bold text-[#333] border-y border-y-[#7e97a7]">
             <td className="p-2">Total</td>
-            <td className="p-2">{total.stake.toFixed(2)}</td>
-            <td className={`p-2 ${getAmountClass(total.downline.toFixed(2))}`}>{total.downline.toFixed(2)}</td>
-            <td className={`p-2 ${getAmountClass(total.player.toFixed(2))}`}>{total.player.toFixed(2)}</td>
-            <td className="p-2">{total.comm.toFixed(2)}</td>
-            <td className={`p-2 ${getAmountClass(total.upline.toFixed(2))}`}>{total.upline.toFixed(2)}</td>
+            <td className="p-2">{formatAmount(total.stake)}</td>
+            <td className={`p-2 ${getAmountClass(total.downline)}`}>{formatAmount(total.downline)}</td>
+            <td className={`p-2 ${getAmountClass(total.player)}`}>{formatAmount(total.player)}</td>
+            <td className="p-2">{formatAmount(total.comm)}</td>
+            <td className={`p-2 ${getAmountClass(total.upline)}`}>{formatAmount(total.upline)}</td>
             <td className="p-2"></td>
           </tr>
           )}

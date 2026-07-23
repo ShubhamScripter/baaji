@@ -1,5 +1,10 @@
 import dotenv from 'dotenv';
 import { fetchMatchList, fetchMatchData } from '../services/matchApi/index.js';
+import {
+  getBlockedSeriesNames,
+  isSeriesBlocked,
+  recordSeriesFromMatches,
+} from '../utils/seriesUtils.js';
 
 dotenv.config();
 
@@ -18,7 +23,13 @@ export const fetchSoccerData = async (req, res) => {
     const t1Data = data.data?.t1 || [];
     const t2Data = data.data?.t2 || [];
 
-    const combinedData = [...t1Data, ...t2Data].map((match) => ({
+    // Keep the Sport Setting series list current, then hide blocked series.
+    await recordSeriesFromMatches('soccer', [...t1Data, ...t2Data]);
+    const blockedSeries = await getBlockedSeriesNames('soccer');
+
+    const combinedData = [...t1Data, ...t2Data]
+      .filter((match) => !isSeriesBlocked(blockedSeries, match.cname))
+      .map((match) => ({
       id: match.gmid,
       beventId: match.beventId || match.bevent_id || null,
       match: match.ename,

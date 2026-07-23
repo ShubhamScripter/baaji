@@ -240,10 +240,23 @@ const downlineSlice = createSlice({
     lastIP: u.lastIP,
   }));
 
+  // Sum of the direct downlines' balances — matches the Balance column below.
+  // selfData.totalBalance is a whole-tree figure and so counts credit held
+  // deeper than the listed rows, which reads as a mismatch on screen.
+  const totalDownlineBalance = downlineArray.reduce(
+    (sum, u) => sum + (u.balance || 0),
+    0
+  );
+
+  // Exposure is stored as a positive magnitude (see subAdminController's
+  // agentAvbalance = totalBalance - totalExposure), so available balance is
+  // the difference of the two cards above it, not their sum.
+  const totalDownlineExposure = selfData.exposure ?? 0;
+
   state.balanceData = [
-  { label: 'Total Balance', value: `BDT ${(selfData.totalBalance ?? 0).toFixed(2)}` },
-  { label: 'Total Exposure', value: `BDT ${(selfData.exposure ?? 0).toFixed(2)}` },
-  { label: 'Total Avail. Balance', value: `BDT ${(selfData.totalBalance ?? 0).toFixed(2)}` },
+  { label: 'Total Balance', value: `BDT ${totalDownlineBalance.toFixed(2)}` },
+  { label: 'Total Exposure', value: `BDT ${totalDownlineExposure.toFixed(2)}` },
+  { label: 'Total Avail. Balance', value: `BDT ${(totalDownlineBalance - totalDownlineExposure).toFixed(2)}` },
   { label: 'Balance', value: `BDT ${(selfData.avbalance ?? 0).toFixed(2)}` },
  {
   label: 'Available Balance',

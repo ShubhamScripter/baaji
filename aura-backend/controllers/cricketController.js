@@ -2,6 +2,11 @@ import dotenv from 'dotenv';
 
 import adminModel from '../models/adminModel.js';
 import { fetchMatchData, fetchMatchList } from '../services/matchApi/index.js';
+import {
+  getBlockedSeriesNames,
+  isSeriesBlocked,
+  recordSeriesFromMatches,
+} from '../utils/seriesUtils.js';
 
 dotenv.config();
 
@@ -28,6 +33,10 @@ export const getCricketData = async (req, res) => {
       const t1 = data.data.t1 || [];
       const t2 = data.data.t2 || [];
       const allMatches = [...t1, ...t2];
+
+      // Keep the Sport Setting series list current, then hide blocked series.
+      await recordSeriesFromMatches('cricket', allMatches);
+      const blockedSeries = await getBlockedSeriesNames('cricket');
 
       const transformed = allMatches
         .map((match) => {
@@ -77,6 +86,7 @@ export const getCricketData = async (req, res) => {
         })
         .filter((m) => {
           if (isBlockedCricketLeague(m.cname)) return false;
+          if (isSeriesBlocked(blockedSeries, m.cname)) return false;
 
           const matchName = (m.match || '').toString().trim().toLowerCase();
           const categoryName = (m.cname || '').toString().trim().toLowerCase();

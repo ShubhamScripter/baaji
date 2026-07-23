@@ -113,7 +113,15 @@ const soccerdata=[
 
 const tenisdata=[]
 
+// Tabs shown above the table, mapped to the gameName the API expects.
+const GAME_NAME_BY_TYPE = {
+  Cricket: 'Cricket Game',
+  Soccer: 'Soccer Game',
+  Tenis: 'Tennis Game',
+  Casino: 'Casino',
+}
 
+const SPORT_TABS = Object.keys(GAME_NAME_BY_TYPE)
 
 function AprofitMarket() {
     const [selectedType, setselectedType] = useState("Cricket")
@@ -299,10 +307,8 @@ function AprofitMarket() {
     // Handle sport type change
     const handleSportChange = (sport) => {
         setselectedType(sport)
-        const gameName = sport === "Cricket" ? "Cricket Game" : 
-                        sport === "Soccer" ? "Soccer Game" : 
-                        sport === "Tenis" ? "Tennis Game" : "Cricket Game"
-        
+        const gameName = GAME_NAME_BY_TYPE[sport] || 'Cricket Game'
+
         const newFilters = { ...filters, gameName }
         setFilters(newFilters)
         fetchMarketReports(newFilters)
@@ -372,15 +378,16 @@ function AprofitMarket() {
       </div>
       {/* Filter Section */}
       <div className='flex gap-2 mt-2'>
-        <button className={`${selectedType==="Cricket"? "bg-[#ffcc2f] border border-[#cb8009] hover:bg-[#cb8009]" : "bg-gradient-to-b from-white to-gray-100 border border-[#bbb]"}  rounded-[5px] px-3 py-2 text-[#333] text-xs font-[700] `}
-        onClick={()=>handleSportChange("Cricket")}
-        >Cricket</button>
-        <button className={`${selectedType==="Soccer"? "bg-[#ffcc2f] border border-[#cb8009] hover:bg-[#cb8009]" : "bg-gradient-to-b from-white to-gray-100 border border-[#bbb]"}  rounded-[5px] px-3 py-2 text-[#333] text-xs font-[700] `}
-        onClick={()=>handleSportChange("Soccer")}
-        >Soccer</button>
-        <button className={`${selectedType==="Tenis"? "bg-[#ffcc2f] border border-[#cb8009] hover:bg-[#cb8009]" : "bg-gradient-to-b from-white to-gray-100 border border-[#bbb]"}  rounded-[5px] px-3 py-2 text-[#333] text-xs font-[700] `}
-        onClick={()=>handleSportChange("Tenis")}
-        >Tenis</button>
+        {SPORT_TABS.map((sport) => (
+          <button
+            key={sport}
+            type="button"
+            className={`${selectedType===sport? "bg-[#ffcc2f] border border-[#cb8009] hover:bg-[#cb8009]" : "bg-gradient-to-b from-white to-gray-100 border border-[#bbb]"}  rounded-[5px] px-3 py-2 text-[#333] text-xs font-[700] `}
+            onClick={()=>handleSportChange(sport)}
+          >
+            {sport}
+          </button>
+        ))}
       </div>
       {/* Table Section */}
       <div className="mt-4">

@@ -87,6 +87,7 @@ import BetList from './pages/BetList/BetList';
 import BetListLive from './pages/BetListLive/BetListLive';
 import RiskManagement from './pages/riskManagement/RiskManagement';
 import MatchedAll from './pages/riskManagement/MatchedAll';
+import RiskFraud from './pages/riskFraud/RiskFraud';
 
 import Banking from './pages/banking/Banking';
 import ManualDepositAccounts from './pages/banking/ManualDepositAccounts';
@@ -108,6 +109,8 @@ import SuspendedFancyResult from './pages/generalSetting/SuspendedFancyResult';
 import SuspendedMarketResult from './pages/generalSetting/SuspendedMarketResult';
 import ViewBets from './pages/generalSetting/ViewBets';
 import InactiveUsers from './pages/generalSetting/InactiveUsers';
+import ActiveUsers from './pages/generalSetting/ActiveUsers';
+import SportSetting from './pages/generalSetting/SportSetting';
 import BetLockedUsers from './pages/generalSetting/BetLockedUsers';
 import Cricketbet from './pages/marketAnalysis/Cricketbet';
 import Tennisbet from './pages/marketAnalysis/Tennisbet';
@@ -162,6 +165,7 @@ function App() {
             <Route path='/Betlist' element={<BetList />} />
             <Route path='/BetListLive' element={<BetListLive />} />
             <Route path='/RiskManagement' element={<RiskManagement />} />
+            <Route path='/risk-fraud' element={<RiskFraud />} />
             <Route path='/cricket-bet/:gameid' element={<Cricketbet />} />
             <Route path='/tennis-bet/:gameid' element={<Tennisbet />} />
             <Route path='/soccerbet/:gameid' element={<Soccerbet />} />
@@ -186,6 +190,8 @@ function App() {
             <Route path='/SuspendedMarketResult' element={<SuspendedMarketResult />} />
             <Route path='/viewBets' element={<ViewBets />} />
             <Route path='/inactive-users' element={<InactiveUsers />} />
+            <Route path='/active-users' element={<ActiveUsers />} />
+            <Route path='/sport-setting' element={<SportSetting />} />
             <Route path='/BetLockUser' element={<BetLockedUsers />} />
           </Route>
         </Route>

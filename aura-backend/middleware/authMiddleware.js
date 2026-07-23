@@ -1,6 +1,24 @@
 import jwt from 'jsonwebtoken';
 
 import SubAdmin from '../models/subAdminModel.js';
+import { PRESENCE_WINDOW_MS } from '../utils/presence.js';
+
+// Refresh lastActive at most once per half-window so a chatty client costs one
+// write every few minutes instead of one per request. The guard lives in the
+// query filter, so concurrent requests can't stampede the same document.
+const touchLastActive = (userId) => {
+  if (!userId) return;
+
+  const staleBefore = new Date(Date.now() - PRESENCE_WINDOW_MS / 2);
+
+  SubAdmin.updateOne(
+    { _id: userId, $or: [{ lastActive: null }, { lastActive: { $lt: staleBefore } }] },
+    { $set: { lastActive: new Date() } }
+  ).catch((error) => {
+    // Presence is best-effort: never fail the request it is riding along with.
+    console.error('Failed to update lastActive:', error.message);
+  });
+};
 
 export const authMiddleware = (req, res, next) => {
   let token;
@@ -30,6 +48,8 @@ export const authMiddleware = (req, res, next) => {
     req.role = decodedToken.role;
     req.user = decodedToken.user;
     req.id = decodedToken.id;
+
+    touchLastActive(decodedToken.id);
 
     next();
   } catch (error) {
@@ -71,6 +91,9 @@ export const adminAuthMiddleware = async (req, res, next) => {
     req.role = userRole;
     req.id = decodedToken.id;
     req.admin = decodedToken.user;
+
+    touchLastActive(decodedToken.id);
+
     next();
   } catch (error) {
     console.error('Admin Auth Error:', error);

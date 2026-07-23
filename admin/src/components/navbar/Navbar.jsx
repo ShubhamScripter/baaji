@@ -1,10 +1,20 @@
 import React, { useState } from "react";
 import * as Icons from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../../store/authSlice";
 
 const navData = [
+  {
+    label: "Active Users",
+    icon: "FaUserCheck",
+    path: "/active-users"
+  },
+  {
+    label: "Sport Setting",
+    icon: "FaFutbol",
+    path: "/sport-setting"
+  },
   {
     label: "Downline List",
     icon: "FaUsers",
@@ -72,6 +82,15 @@ const navData = [
     path: "/RiskManagement"
   },
   {
+    label: "Risk & Fraud",
+    icon: "FaShieldAlt",
+    path: "/risk-fraud",
+    // Multi-account detection exposes players across the whole downline.
+    superadminOnly: true,
+    // Count of unreviewed clusters, kept live by useFraudAlerts.
+    badge: "fraud"
+  },
+  {
     label: "BetListLive",
     icon: "FaBroadcastTower",
     path: "/BetListLive"
@@ -113,7 +132,7 @@ const navData = [
   }
 ];
 
-const SidebarItem = ({ item }) => {
+const SidebarItem = ({ item, badgeCount = 0 }) => {
   const [open, setOpen] = useState(false);
   const Icon = Icons[item.icon] || Icons.FaQuestionCircle;
   const navigate = useNavigate();
@@ -140,8 +159,13 @@ const SidebarItem = ({ item }) => {
         className="flex items-center justify-between cursor-pointer p-2 py-3 border-b-[1px] border-b-solid border-b-[#ffffff4d] hover:bg-[#4a4e42] hover:font-semibold"
       >
         <div className="flex items-center gap-2">
-         
+
           <span className="text-[13px]">{item.label}</span>
+          {badgeCount > 0 && (
+            <span className="bg-[#d32f2f] text-white text-[10px] font-bold leading-none min-w-[18px] px-1.5 py-1 rounded-full text-center">
+              {badgeCount > 99 ? "99+" : badgeCount}
+            </span>
+          )}
         </div>
         {item.children && (
           <span>{open ? "▲" : "▼"}</span>
@@ -160,10 +184,23 @@ const SidebarItem = ({ item }) => {
 };
 
 const Navbar = () => {
+  const role = useSelector((state) => state.auth.role);
+  const unreviewedClusters = useSelector(
+    (state) => state.fraud.summary?.unacknowledged || 0
+  );
+
+  const items = navData.filter(
+    (item) => !item.superadminOnly || role === "superadmin"
+  );
+
   return (
     <div className="w-64 bg-black text-white shadow-lg h-[calc(100vh-80px)] overflow-y-auto hide-scrollbar">
-      {navData.map((item) => (
-        <SidebarItem key={item.path || item.label} item={item} />
+      {items.map((item) => (
+        <SidebarItem
+          key={item.path || item.label}
+          item={item}
+          badgeCount={item.badge === "fraud" ? unreviewedClusters : 0}
+        />
       ))}
     </div>
   );

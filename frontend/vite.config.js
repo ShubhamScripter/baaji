@@ -8,6 +8,7 @@ export default defineConfig({
               env: "development",
             },],
   server: {
-    port: 5173, 
+    host: true,
+    port: 5173,
   },
 })

@@ -5,9 +5,21 @@ import {
   getDeactivatedMatches,
   toggleMatchStatus,
 } from '../../controllers/admin/matchSettingsController.js';
+import {
+  getSeriesList,
+  toggleSeriesBlock,
+} from '../../controllers/admin/seriesSettingsController.js';
 import { adminAuthMiddleware } from '../../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+//Sport Setting - list series and block/unblock a whole series
+router.get('/series-settings', adminAuthMiddleware, getSeriesList);
+router.patch(
+  '/series-settings/:seriesId/toggle-block',
+  adminAuthMiddleware,
+  toggleSeriesBlock
+);
 
 //Toggle Match active/deactive
 router.patch(

@@ -34,6 +34,7 @@ import {
   userSetting,
   withdrowalAndDeposite,
   getDuplicateIPUsers,
+  getActiveUserStats,
   getLiveDownlineBets,
   getUserCompleteInfo,
   getAllUsersIncludingSubAdmins,
@@ -111,6 +112,7 @@ router.post(
 );
 
 router.get("/duplicate-ip-users", adminAuthMiddleware, getDuplicateIPUsers);
+router.get("/active-user-stats", adminAuthMiddleware, getActiveUserStats);
 router.post("/sub-admin/profile-data", adminAuthMiddleware, getUserCompleteInfo);
 
 export default router;

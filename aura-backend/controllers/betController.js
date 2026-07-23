@@ -22,6 +22,8 @@ const toApiMarketName = (name) => MARKET_NAME_TO_API[name] || name;
 
 import betHistoryModel from '../models/betHistoryModel.js';
 import betModel from '../models/betModel.js';
+import CasinoBetHistory from '../models/casinoBetHistory.model.js';
+import { mapCasinoRoundToBet } from '../utils/casinoPL.js';
 import DeactivatedMatch from '../models/matchSettingsModel.js';
 import SubAdmin from '../models/subAdminModel.js';
 import TransactionHistory from '../models/transtionHistoryModel.js';
@@ -4442,21 +4444,72 @@ export const getBetHistory = async (req, res) => {
       query.status = 0;
     }
 
-    const bets = await betHistoryModel
-      .find(query)
-      .sort({ date: -1 }) // most recent first
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    const pageNum = Math.max(parseInt(page) || 1, 1);
+    const limitNum = Math.max(parseInt(limit) || 10, 1);
 
-    const total = await betHistoryModel.countDocuments(query);
+    // Casino rounds are always settled, so they only belong in the settled
+    // view — never in unsettled (current bets) or void.
+    const includeCasino =
+      selectedVoid === 'settel' &&
+      (!selectedGame || /casino/i.test(selectedGame));
+
+    let casinoQuery = null;
+    if (includeCasino) {
+      casinoQuery = { userId: id };
+      if (startDate && endDate) {
+        casinoQuery.createdAt = getDateRangeUTC(startDate, endDate);
+      }
+    }
+
+    if (!includeCasino) {
+      const bets = await betHistoryModel
+        .find(query)
+        .sort({ date: -1 }) // most recent first
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum);
+
+      const total = await betHistoryModel.countDocuments(query);
+
+      return res.status(200).json({
+        success: true,
+        data: bets,
+        pagination: {
+          total,
+          page: pageNum,
+          pages: Math.ceil(total / limitNum),
+        },
+      });
+    }
+
+    // Both collections are sorted by date, so take the first `page * limit`
+    // rows from each, merge them, and slice out the requested page.
+    const take = pageNum * limitNum;
+
+    const [sportsBets, casinoRounds, sportsTotal, casinoTotal] =
+      await Promise.all([
+        betHistoryModel.find(query).sort({ date: -1 }).limit(take),
+        CasinoBetHistory.find(casinoQuery).sort({ createdAt: -1 }).limit(take),
+        betHistoryModel.countDocuments(query),
+        CasinoBetHistory.countDocuments(casinoQuery),
+      ]);
+
+    const merged = [
+      ...sportsBets.map((bet) => bet.toObject()),
+      ...casinoRounds.map((round) => mapCasinoRoundToBet(round.toObject())),
+    ].sort(
+      (a, b) =>
+        new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)
+    );
+
+    const total = sportsTotal + casinoTotal;
 
     res.status(200).json({
       success: true,
-      data: bets,
+      data: merged.slice((pageNum - 1) * limitNum, pageNum * limitNum),
       pagination: {
         total,
-        page: parseInt(page),
-        pages: Math.ceil(total / limit),
+        page: pageNum,
+        pages: Math.ceil(total / limitNum),
       },
     });
   } catch (error) {

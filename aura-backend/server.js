@@ -15,6 +15,7 @@ import manualResultRoutes from './routes/admin/manualResultRoutes.js';
 import marketAnalizeRoutes from './routes/admin/marketAnalizeRoutes.js';
 import matchSettingsRoutes from './routes/admin/matchSettingsRoute.js';
 import riskRoutes from './routes/admin/riskRoutes.js';
+import fraudRoutes from './routes/admin/fraudRoutes.js';
 import manualDepositRoutes from './routes/manualDepositRoutes.js';
 import subRouteRoutes from './routes/admin/subAdminRoutes.js';
 import betRoute from './routes/betRoute.js';
@@ -71,17 +72,29 @@ const allowedOrigins = [
 const localNetworkOrigin =
   /^https?:\/\/(localhost|127\.0\.0\.1|(10|127)\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
 
+// Allow ephemeral dev tunnels (ngrok / cloudflare quick tunnels) whose subdomain
+// changes on every restart. Needed because Vite's build emits <script crossorigin>,
+// which makes even the static bundle a CORS request — otherwise it is rejected and
+// the app white-pages. Scope: testing only; tighten or remove for production.
+const tunnelOrigin =
+  /^https:\/\/[a-z0-9-]+\.(trycloudflare\.com|ngrok-free\.dev|ngrok-free\.app|ngrok\.io|ngrok\.app)$/;
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || localNetworkOrigin.test(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        localNetworkOrigin.test(origin) ||
+        tunnelOrigin.test(origin)
+      ) {
         return callback(null, true);
       }
       return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-Id'],
   })
 );
 
@@ -113,6 +126,7 @@ app.use('/api', casinoRoutes);
 app.use('/api', marketAnalizeRoutes);
 app.use('/api', matchSettingsRoutes);
 app.use('/api', riskRoutes);
+app.use('/api', fraudRoutes);
 app.use('/api', manualResultRoutes);
 app.use('/api', cashoutRoute);
 app.use('/api', manualDepositRoutes);

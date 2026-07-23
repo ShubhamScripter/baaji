@@ -146,9 +146,12 @@ function BettingProfitLoss() {
             validTurnover: bet.bet_amount || 0,
             winLoss: bet.win_amount || 0,
             ptComm: 0,
-            profitLoss: bet.change || 0,
+            // Net P/L of the round; `change` holds the last callback's delta
+            // (+win after a win), so it over-reports winning rounds.
+            profitLoss: bet.net ?? (bet.win_amount || 0) - (bet.bet_amount || 0),
           });
-          groupedData[key].profitLoss += bet.change || 0;
+          groupedData[key].profitLoss +=
+            bet.net ?? (bet.win_amount || 0) - (bet.bet_amount || 0);
         });
         setbettingData(Object.values(groupedData));
       } else {

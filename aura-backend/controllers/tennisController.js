@@ -1,6 +1,11 @@
 // controllers/tennisController.js
 import dotenv from 'dotenv';
 import { fetchMatchList, fetchMatchData } from '../services/matchApi/index.js';
+import {
+  getBlockedSeriesNames,
+  isSeriesBlocked,
+  recordSeriesFromMatches,
+} from '../utils/seriesUtils.js';
 
 dotenv.config();
 
@@ -11,7 +16,12 @@ export const fetchTennisData = async (req, res) => {
     const t1Data = data.data.t1 || [];
     const t2Data = data.data.t2 || [];
 
+    // Keep the Sport Setting series list current, then hide blocked series.
+    await recordSeriesFromMatches('tennis', [...t1Data, ...t2Data]);
+    const blockedSeries = await getBlockedSeriesNames('tennis');
+
     const combinedData = [...t1Data, ...t2Data]
+      .filter((match) => !isSeriesBlocked(blockedSeries, match.cname))
       .map((match) => ({
         id: match.gmid,
         match: match.ename,

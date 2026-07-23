@@ -12,10 +12,20 @@ import LoginHistory from '../../models/loginHistory.js';
 import DeactivatedMatch from '../../models/matchSettingsModel.js';
 import passwordHistory from '../../models/passwordHistory.js';
 import CasinoBetHistory from '../../models/casinoBetHistory.model.js';
+import {
+  CASINO_NET_PL_EXPR,
+  getCasinoRoundNet,
+} from '../../utils/casinoPL.js';
 import SubAdmin from '../../models/subAdminModel.js';
 import TransactionHistory from '../../models/transtionHistoryModel.js';
 import WithdrawalHistory from '../../models/withdrawalHistoryModel.js';
+import { resolveDevice } from '../../utils/deviceFingerprint.js';
 import { calculateAllExposure } from '../../utils/exposureUtils.js';
+import {
+  getDownlineCodes,
+  getPresenceCutoff,
+  PRESENCE_WINDOW_MS,
+} from '../../utils/presence.js';
 
 const countUplines = async (user) => {
   let count = 0;
@@ -71,21 +81,36 @@ const updateAdmin = async (id) => {
 
         // For actual users, recalculate bettingProfitLoss from betHistoryModel
         // (single source of truth - stores each individual bet with original values)
-        const plResult = await betHistoryModel.aggregate([
-          {
-            $match: {
-              userId: user._id.toString(),
-              status: { $in: [1, 2] },
+        // plus CasinoBetHistory, where third-party casino rounds are recorded.
+        // Without the casino half this overwrite wipes casino P/L from the
+        // downline list totals.
+        const [plResult, casinoPlResult] = await Promise.all([
+          betHistoryModel.aggregate([
+            {
+              $match: {
+                userId: user._id.toString(),
+                status: { $in: [1, 2] },
+              },
             },
-          },
-          {
-            $group: {
-              _id: null,
-              totalPL: { $sum: '$profitLossChange' },
+            {
+              $group: {
+                _id: null,
+                totalPL: { $sum: '$profitLossChange' },
+              },
             },
-          },
+          ]),
+          CasinoBetHistory.aggregate([
+            { $match: { userId: user._id.toString() } },
+            {
+              $group: {
+                _id: null,
+                totalPL: { $sum: CASINO_NET_PL_EXPR },
+              },
+            },
+          ]),
         ]);
-        const userBettingPL = plResult.length > 0 ? plResult[0].totalPL : 0;
+        const userBettingPL =
+          (plResult[0]?.totalPL || 0) + (casinoPlResult[0]?.totalPL || 0);
 
         // Update user's stored bettingProfitLoss if it drifted from betHistoryModel
         if (user.bettingProfitLoss !== userBettingPL) {
@@ -533,12 +558,7 @@ export const deleteSubAdmin = async (req, res) => {
 
 const saveLoginHistory = async (userName, id, status, req) => {
   try {
-    const ip =
-      req.headers['x-forwarded-for']?.split(',')[0] ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      req.connection?.socket?.remoteAddress ||
-      'IP not found';
+    const { deviceId, deviceSource, userAgent, ip } = resolveDevice(req);
 
     //  Get geo details
     const response = await axios.get(`https://ipapi.co/${ip}/json/`);
@@ -567,6 +587,9 @@ const saveLoginHistory = async (userName, id, status, req) => {
       city,
       region,
       country,
+      deviceId,
+      deviceSource,
+      userAgent,
     });
   } catch (error) {
     console.error(' Login history error:', error.message);
@@ -620,16 +643,31 @@ export const loginSubAdmin = async (req, res) => {
     // If we rotate on every login, previous devices get force-logged out.
     const sessionToken =
       subAdmin.sessionToken || crypto.randomBytes(32).toString('hex');
-    const deviceId = req.headers['user-agent'] || 'unknown-device';
-    const ipAddress =
-      req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const { deviceId, userAgent, ip: ipAddress } = resolveDevice(req);
 
-    //  Update user session information
+    //  Update user session information.
+    // Use an atomic $set instead of load-modify-save(): save() runs
+    // full-document validation and would reject legacy sub-admins that are
+    // missing now-required fields (e.g. email) even though login never
+    // touches them. An atomic update also avoids clobbering a concurrent
+    // login's session fields (see note above about multiple devices).
     subAdmin.sessionToken = sessionToken;
     subAdmin.lastLogin = new Date();
-    subAdmin.lastDevice = deviceId;
+    subAdmin.lastDevice = userAgent;
+    subAdmin.lastDeviceId = deviceId;
     subAdmin.lastIP = ipAddress;
-    await subAdmin.save();
+    await SubAdmin.updateOne(
+      { _id: subAdmin._id },
+      {
+        $set: {
+          sessionToken,
+          lastLogin: subAdmin.lastLogin,
+          lastDevice: userAgent,
+          lastDeviceId: deviceId,
+          lastIP: ipAddress,
+        },
+      }
+    );
 
     //  Generate JWT Token with session token
     const token = jwt.sign(
@@ -2188,7 +2226,8 @@ export const getAllDownlineBets = async (req, res) => {
         otype: row.providerRaw?.type || 'casino',
         xValue: row.providerRaw?.odds || 0,
         price: row.bet_amount || 0,
-        resultAmount: row.change || 0,
+        // Net P/L of the round; `change` is the last callback's delta, not P/L.
+        resultAmount: getCasinoRoundNet(row),
         status: row.win_amount > 0 || row.change !== 0 ? 1 : 0,
         ip: row.providerRaw?.ip || '-',
         createdAt: row.createdAt,
@@ -2344,7 +2383,8 @@ export const getLiveDownlineBets = async (req, res) => {
         xValue: row.providerRaw?.odds || 0,
         price: row.bet_amount || 0,
         liability: row.bet_amount || 0,
-        resultAmount: row.change || 0,
+        // Net P/L of the round; `change` is the last callback's delta, not P/L.
+        resultAmount: getCasinoRoundNet(row),
         status: selectedVoid === 'settel' ? 1 : 0,
         betType: 'casino',
         ip: row.providerRaw?.ip || '-',
@@ -3165,6 +3205,60 @@ export const getAllUsersIncludingSubAdmins = async (req, res) => {
       success: false,
       message: "Internal Server Error",
       details: error.message,
+    });
+  }
+};
+
+export const getActiveUserStats = async (req, res) => {
+  try {
+    const { id } = req;
+
+    const admin = await SubAdmin.findById(id).select('code role').lean();
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Account not found' });
+    }
+
+    // Scope every count to the caller's own downline so lower-level roles
+    // never see totals from outside their tree.
+    const downlineCodes = await getDownlineCodes(admin.code);
+    const scope = {
+      invite: { $in: downlineCodes },
+      status: { $ne: 'delete' },
+    };
+
+    const cutoff = getPresenceCutoff();
+    const onlineScope = { ...scope, lastActive: { $gte: cutoff } };
+
+    const [totalUsers, totalAgents, onlineUsers, onlineUserList] =
+      await Promise.all([
+        SubAdmin.countDocuments({ ...scope, role: 'user' }),
+        SubAdmin.countDocuments({ ...scope, role: 'agent' }),
+        SubAdmin.countDocuments({ ...onlineScope, role: 'user' }),
+        SubAdmin.find({ ...onlineScope, role: 'user' })
+          .select('userName role lastActive lastLogin lastIP')
+          .sort({ lastActive: -1 })
+          .limit(200)
+          .lean(),
+      ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalUsers,
+        totalAgents,
+        onlineUsers,
+        onlineUserList,
+        presenceWindowMinutes: PRESENCE_WINDOW_MS / 60000,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching active user stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
     });
   }
 };

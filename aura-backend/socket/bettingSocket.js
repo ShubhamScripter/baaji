@@ -3,6 +3,7 @@
 // WebSocketServer - from the ws library, lets you create a WebSocketServer that client (browsers, app) can connect to
 import axios from 'axios';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 import io from 'socket.io-client';
 import { WebSocketServer } from 'ws';
 import betModel from '../models/betModel.js';
@@ -349,6 +350,7 @@ export const setupWebSocket = (server) => {
       apitype: null,
       roundId: null,
       userId: null,
+      adminRole: null,
     };
     clients.push(client);
 
@@ -357,6 +359,20 @@ export const setupWebSocket = (server) => {
       try {
         const jsonStr = message.toString();
         const data = JSON.parse(jsonStr);
+
+        // Register an admin-panel socket for risk & fraud alerts. The JWT is
+        // verified here rather than trusting a claimed role, because these
+        // alerts expose player identities across the whole downline.
+        if (data.type === 'register-admin' && data.token) {
+          try {
+            const decoded = jwt.verify(data.token, process.env.JWT_SECRET);
+            client.adminRole = decoded.role;
+            client.userId = decoded.id;
+            console.log(`[WS] Registered admin socket: role=${decoded.role}`);
+          } catch {
+            console.warn('[WS] Rejected admin registration: invalid token');
+          }
+        }
 
         // Register userId for account-level updates (balance, exposure, open bets, cashout)
         if (data.type === 'register' && data.userId) {
@@ -447,6 +463,35 @@ export const setupWebSocket = (server) => {
 //  REMOVED: sendCasinoResultUpdate function
 // Frontend now uses API calls (fetchCasinoResultData) triggered by useRef round detection
 // This function is no longer needed and has been replaced with the optimized approach
+
+// Push a multi-account (risk & fraud) alert to every connected superadmin panel.
+// Superadmin-only on purpose: these payloads carry player identities from across
+// the entire downline, so an agent must not receive them.
+export const sendFraudAlert = (payload) => {
+  const recipients = clients.filter(
+    (c) => c.adminRole === 'superadmin' && c.ws.readyState === 1
+  );
+
+  if (!recipients.length) {
+    console.log('[WS][FRAUD] No superadmin connected; alert stored only');
+    return 0;
+  }
+
+  const message = JSON.stringify({ type: 'fraudAlert', data: payload });
+  let delivered = 0;
+
+  for (const client of recipients) {
+    try {
+      client.ws.send(message);
+      delivered += 1;
+    } catch (error) {
+      console.error('[WS][FRAUD] Send failed:', error.message);
+    }
+  }
+
+  console.log(`[WS][FRAUD] Alert delivered to ${delivered} superadmin client(s)`);
+  return delivered;
+};
 
 //FUNCTION THAT SENDS BALANCE UPDATES TO ALL THE CONNECTED CLIENTS
 export const sendBalanceUpdates = (userId, newBalance) => {

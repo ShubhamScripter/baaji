@@ -6,6 +6,7 @@ import activityLogReducer from './activityLogSlice';
 import transactionsReducer from './transactionsSlice';
 import subadminReducer from './subadminSlice'
 import riskReducer from './riskSlice';
+import fraudReducer from './fraudSlice';
 import marketReducer from './marketAnalyzeReducer';
 import { setLogoutHandler } from '../utils/axiosInstance';
 
@@ -18,6 +19,7 @@ const store = configureStore({
     transactions: transactionsReducer,
     subadmin: subadminReducer,
     risk: riskReducer,
+    fraud: fraudReducer,
     market: marketReducer,
   },
 });

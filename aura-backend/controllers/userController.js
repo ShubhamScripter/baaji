@@ -7,6 +7,8 @@ import betModel from '../models/betModel.js';
 import LoginHistory from '../models/loginHistory.js';
 import passwordHistory from '../models/passwordHistory.js';
 import SubAdmin from '../models/subAdminModel.js';
+import { processLoginSignals } from '../services/fraudDetection.js';
+import { resolveDevice } from '../utils/deviceFingerprint.js';
 import { calculateAllExposure } from '../utils/exposureUtils.js';
 
 export const registerUser = async (req, res) => {
@@ -142,12 +144,7 @@ export const registerSelf = async (req, res) => {
 
 const saveLoginHistory = async (userName, id, status, req) => {
   try {
-    const ip =
-      req.headers['x-forwarded-for']?.split(',')[0] ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      req.connection?.socket?.remoteAddress ||
-      'IP not found';
+    const { deviceId, deviceSource, userAgent, ip } = resolveDevice(req);
 
     const response = await axios.get(`https://ipapi.co/${ip}/json/`);
     const { city, region, country_name: country, org: isp } = response.data;
@@ -175,6 +172,9 @@ const saveLoginHistory = async (userName, id, status, req) => {
       city,
       region,
       country,
+      deviceId,
+      deviceSource,
+      userAgent,
     });
   } catch (error) {
     console.error(' Login history error:', error.message);
@@ -237,6 +237,17 @@ export const loginUser = async (req, res) => {
     });
 
     await saveLoginHistory(userName, user._id, 'Success', req);
+
+    // Record device/IP and raise a multi-account alert if this account now shares
+    // a device (or IP) with another player. Never allowed to fail the login.
+    const { deviceId, userAgent, ip: loginIp } = resolveDevice(req);
+    user.lastDevice = userAgent;
+    user.lastDeviceId = deviceId;
+    user.lastIP = loginIp;
+    await user.save();
+    processLoginSignals(user, req).catch((error) =>
+      console.error('[FRAUD] user login hook failed:', error.message)
+    );
 
     res.status(200).json({
       success: true,

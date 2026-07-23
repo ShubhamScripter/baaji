@@ -9,6 +9,9 @@ const casinoBetHistorySchema = new mongoose.Schema(
     },
     userName: { type: String, required: true }, // maps to "mobile"
     game_uid: { type: String, required: true },
+    // Sent by the provider callback; stored so bet history can show the game
+    // that was played instead of the raw game_uid.
+    game_name: { type: String },
     game_round: { type: String, required: true },
     bet_amount: { type: Number, default: 0 },
     win_amount: { type: Number, default: 0 },

@@ -1,5 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { formatAmount, getAmountClass } from "../../../utils/formatAmount";
 
 const getStatusText = (status, type) => {
   if (status === 1) return "Win";
@@ -63,8 +64,8 @@ function MatchMarketBets() {
                   <td className="px-2 py-2">{Number(bet.stake || 0).toFixed(2)}</td>
                   <td className="px-2 py-2">{formatDateTime(bet.date)}</td>
                   <td className="px-2 py-2">{bet.ip || "-"}</td>
-                  <td className={`px-2 py-2 ${Number(bet.profitLoss || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {Number(bet.profitLoss || 0).toFixed(2)}
+                  <td className={`px-2 py-2 ${getAmountClass(bet.profitLoss)}`}>
+                    {formatAmount(bet.profitLoss)}
                   </td>
                   <td className="px-2 py-2">{getStatusText(bet.status, bet.type)}</td>
                 </tr>

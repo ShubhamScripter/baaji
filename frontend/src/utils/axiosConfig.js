@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { getDeviceId } from "./deviceId";
+
 const { hostname, protocol } = window.location;
 
 // isDev = Vite dev server is running (works for localhost AND LAN IPs like 172.x.x.x)
@@ -18,6 +20,11 @@ api.interceptors.request.use(
     const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Device fingerprint for multi-account detection (Risk & Fraud).
+    const deviceId = getDeviceId();
+    if (deviceId) {
+      config.headers["X-Device-Id"] = deviceId;
     }
     return config;
   },

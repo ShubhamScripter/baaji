@@ -41,9 +41,16 @@ function DownLineList() {
       setUserRole(user.role); // capture current user's role for dynamic add
       console.log("Current viewed user's role:", user.role);
 
+      // Total Balance = sum of all direct downlines' balances (totalDownlineBalance).
+      // Matches the backend definition in subAdminController (directDownlines
+      // reduced over `balance`). Computed here from the downlines array.
+      const totalDownlineBalance = (user.downlines || []).reduce(
+        (sum, u) => sum + (u.balance || 0),
+        0
+      );
 
       setUserData([
-        { label: 'Total Balance', value: `BDT ${(user.totalBalance ?? 0).toFixed(2)}` },
+        { label: 'Total Balance', value: `BDT ${totalDownlineBalance.toFixed(2)}` },
         { label: 'Total Exposure', value: `BDT ${(user.totalExposure ?? 0).toFixed(2)}`, highlight: true },
         { label: 'Total Avail. bal.', value: `BDT ${(user.totalAvailableBalance ?? 0).toFixed(2)}` },
         { label: 'Balance', value: `BDT ${(user.balance ?? 0).toFixed(2)}` },

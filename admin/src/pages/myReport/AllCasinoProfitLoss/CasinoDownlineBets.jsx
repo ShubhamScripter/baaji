@@ -118,12 +118,18 @@ function CasinoDownlineBets() {
                     <td className="px-2 py-2">{bet.game_round || "-"}</td>
                     <td className="px-2 py-2">{formatNumber(bet.bet_amount)}</td>
                     <td className="px-2 py-2">{formatNumber(bet.win_amount)}</td>
+                    {/* Net P/L of the round; `change` holds the last callback's
+                        delta (+win after a win), so it over-reports wins. */}
                     <td
                       className={`px-2 py-2 ${
-                        Number(bet.change || 0) < 0 ? "text-[#dc3545]" : "text-[#198754]"
+                        Number(bet.net ?? (bet.win_amount || 0) - (bet.bet_amount || 0)) < 0
+                          ? "text-[#dc3545]"
+                          : "text-[#198754]"
                       }`}
                     >
-                      {formatNumber(bet.change)}
+                      {formatNumber(
+                        bet.net ?? (bet.win_amount || 0) - (bet.bet_amount || 0)
+                      )}
                     </td>
                     <td className="px-2 py-2">{formatDateTime(bet.createdAt)}</td>
                   </tr>
